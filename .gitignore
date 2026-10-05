@@ -1,0 +1,9 @@
+# template, livree e progetti personali: non vanno nel repository
+*.psd
+*.psb
+*.tga
+*.dds
+livrea_progetto*.json
+livrea_lmu*.zip
+.DS_Store
+Thumbs.db
