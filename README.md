@@ -6,14 +6,16 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 
 ## Cosa fa
 
-- **Apre il template PSD ufficiale** dell'auto: prende da solo il wireframe UVW, il colore base, gli adesivi obbligatori (bloccati al loro posto) e la mappa dei materiali.
+- **Apre il template PSD ufficiale** dell'auto (anche trascinandolo sulla tela): prende da solo il wireframe UVW, il colore base, gli adesivi obbligatori (bloccati al loro posto) e la mappa dei materiali. Carrozzeria, carbonio e plastiche del template restano sotto i tuoi livelli, numeri e adesivi sopra.
+- **Set di adesivi:** se il template ha più versioni (per esempio WEC e Le Mans 24h) scegli quale usare con un clic. I gruppi del PSD restano gruppi nel pannello Livelli, apribili e nascondibili.
+- **Guide del template** come la maschera "Disable for export" e la posizione dei display: si vedono nell'editor ma non finiscono nei file.
 - **Riempi pezzo (F) e riempi pannello (M):** un clic e il colore segue la forma esatta della parte della carrozzeria.
 - **Forme e disegno:** lame a punti (P), lazo (Q), pennello (B), gomma (E), rettangoli, ellissi, testi e loghi.
 - **Maniglie sulla tela** per ruotare e ridimensionare.
 - **Trame e sfumature:** carbonio, righe, esagoni, mezzitoni, chevron, scacchi, mimetico, sfumatura a 2 colori e camaleonte a 3 colori.
 - **Testi con contorno e ombra**, per numeri di gara e nomi pilota.
 - **Specchio sull'altro fianco**, con colore invertito, e **filetto** lungo i bordi.
-- **Materiali:** ogni livello può diventare vernice, carbonio, cromo, wrap o adesivi, e finisce nella mappa delle regioni.
+- **Materiali:** anche la base ha un materiale (per esempio tutta la carrozzeria in cromo o wrap); ogni livello può diventare vernice, carbonio, cromo, wrap o adesivi, così i dettagli possono tornare vernice (region nero).
 - **Libreria personale** di loghi e **palette estratta da una foto**.
 - **Salvataggio automatico** nel browser e progetti salvabili in JSON.
 - **Export per LMU:** `customskin.tga` e `customskin_region.tga` (TGA 32 bit non compressi, 4096 × 4096).
@@ -38,7 +40,7 @@ I template, i modelli e i loghi delle auto appartengono ai rispettivi proprietar
 
 ## Limiti noti
 
-- Il riconoscimento dei pannelli si basa sulle linee verdi del wireframe UVW. È stato provato sul template della Genesis.
+- Il riconoscimento dei pannelli si basa sulle linee verdi del wireframe UVW. Se il wireframe non ha linee verdi dei pannelli (BMW M Hybrid) o è tutto verde (Ferrari 499P), “Riempi pannello” colora il pezzo intero. Provato sui template di Genesis, Ferrari 296 GT3, Lamborghini Huracán, Porsche 911 GT3 R, BMW M Hybrid, Cadillac V-Series, Ferrari 499P e Oreca 07.
 - Non c'è un'anteprima 3D: i modelli delle auto non sono accessibili. Si usa lo showroom del gioco.
 
 ## Licenza

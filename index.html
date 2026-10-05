@@ -61,12 +61,12 @@ button{cursor:pointer}
 .cbtn{width:30px;height:26px;border:1px solid var(--line);border-radius:6px;padding:1px;background:none}
 .mini{display:flex;gap:3px}
 .mini button{width:18px;height:18px;border-radius:4px;border:1px solid var(--line);padding:0}
-.hud{left:10px;bottom:10px;display:flex;gap:6px;align-items:center;padding:4px 6px}
+.hud{left:10px;bottom:10px;display:flex;gap:6px;align-items:center;padding:4px 6px;flex-wrap:wrap;max-width:calc(60% - 20px)}
 .hud span{min-width:46px;text-align:center;font-variant-numeric:tabular-nums;color:var(--muted)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .seg button{border:0;background:none;padding:3px 9px;font-size:12.5px}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
-.hint{right:10px;bottom:10px;max-width:44%;padding:6px 10px;color:var(--muted);font-size:12.5px;box-shadow:none}
+.hint{right:10px;bottom:10px;max-width:38%;padding:6px 10px;color:var(--muted);font-size:12.5px;box-shadow:none}
 .empty{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(420px,90%);padding:20px 22px}
 .empty h2{margin:0 0 6px;font:700 24px "Barlow Condensed",sans-serif}
 .empty p{margin:0 0 14px;color:var(--muted)}
@@ -104,6 +104,29 @@ button{cursor:pointer}
 .pt{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);background:none;border:0;padding:0}
 .pt canvas{width:100%;aspect-ratio:1;border-radius:8px;border:1px solid var(--line)}
 .pt[aria-pressed="true"] canvas{outline:2px solid var(--accent)}
+.layer .chip.chk-bg{background-color:#fff;background-image:none;background-size:contain;background-repeat:no-repeat;background-position:center}
+.layer.guide .nm{font-style:italic}
+.layer.base{background:none;border-style:dashed}
+.tag{font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.grp{border:1px solid var(--line);border-radius:8px;margin-bottom:4px;background:var(--panel)}
+.grp>summary{display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;list-style:none;font-weight:600;font-size:13px}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary::after{content:'▸';margin-left:auto;color:var(--muted);transition:transform .15s}
+.grp[open]>summary::after{transform:rotate(90deg)}
+.grp.off>summary .gname{opacity:.5}
+.grp .gname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp .cnt{font:500 11px Barlow,sans-serif;color:var(--muted);background:var(--panel2);border-radius:10px;padding:0 7px}
+.grp>.layers{padding:0 4px 2px 12px}
+.grp .grp{margin-top:2px}
+.vrow{margin:2px 0 6px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.vline{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.vname{font-size:12.5px;color:var(--muted)}
+.vset{flex-wrap:wrap;background:var(--panel)}
+.vset button{padding:4px 10px}
+.legend{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--line);margin-right:3px;vertical-align:-1px}
+.drop{position:absolute;inset:10px;border:3px dashed var(--accent);border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,transparent);display:grid;place-items:center;font:700 22px "Barlow Condensed",sans-serif;color:var(--ink);pointer-events:none}
 .bot{grid-column:1/4;display:flex;gap:10px;align-items:center;padding:6px 12px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;flex-wrap:wrap}
 .picker{left:50%;top:50%;transform:translate(-50%,-50%);width:min(480px,92%);max-height:72%;overflow:auto;padding:12px 14px}
 .picker h3{margin:0;font:600 18px "Barlow Condensed",sans-serif}
@@ -111,7 +134,7 @@ button{cursor:pointer}
 .pk:hover{border-color:var(--accent)}
 .pk small{color:var(--muted);font-size:12px}
 .gamebtn[hidden]{display:none!important}
-.toast{position:fixed;left:50%;bottom:calc(52px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw;z-index:20}
+.toast{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%);box-shadow:0 6px 20px rgba(0,0,0,.25);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw;z-index:20}
 
 @media (max-width: 900px){
   body{overflow:auto}
@@ -122,6 +145,7 @@ button{cursor:pointer}
   .side{border-left:0;border-top:1px solid var(--line)}
   .pane{overflow:visible}
   .hint{display:none}
+  .hud{max-width:calc(100% - 20px)}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
@@ -151,7 +175,7 @@ button{cursor:pointer}
     <div class="float opts" id="opts"></div>
     <div class="float empty" id="empty">
       <h2>Apri il template della tua auto</h2>
-      <p>Carica il PSD che trovi nella cartella Support/LiveryTemplates di Le Mans Ultimate. L'editor prende da solo wireframe, pezzi, adesivi ufficiali e mappa dei materiali.</p>
+      <p>Carica il PSD che trovi nella cartella Support/LiveryTemplates di Le Mans Ultimate. L'editor prende da solo wireframe, pezzi, adesivi ufficiali e mappa dei materiali. Puoi anche trascinare il file qui.</p>
       <button class="btn pri" id="bTpl2">Apri template PSD</button>
       <button class="btn gamebtn" id="bTpl3" hidden style="margin-left:6px">Scegli dal gioco</button>
       <div id="resumeBox" hidden style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><p class="note" id="resumeTxt" style="margin:0 0 8px"></p><button class="btn" id="bResume">Riprendi da dove eri rimasto</button></div>
@@ -166,6 +190,8 @@ button{cursor:pointer}
       <button class="btn sm" id="zFit">Adatta</button>
       <div class="seg" role="group" aria-label="Vista"><button id="vLiv" aria-pressed="true">Livrea</button><button id="vMat" aria-pressed="false">Materiali</button></div>
       <button class="btn sm" id="bWire" aria-pressed="true">Linee</button>
+      <button class="btn sm" id="bHelp" aria-pressed="true" title="Mostra o nascondi i suggerimenti">?</button>
+      <div class="legend" id="legend" hidden></div>
     </div>
     <div class="float hint" id="hint"></div>
   </main>
@@ -212,10 +238,10 @@ const S={
   layers:[], sel:null, base:'#F4F5F0', axis:2048, tool:'select', uid:1,
   wire:{on:true,op:0.85}, view:{z:0.2,x:0,y:0}, mode:'livery',
   act:{color:'#C0202B', pat:'none', bg:'#1B1D20', scale:1, angle:0, c2:'#006B3C', c3:'#C9A24B', gangle:0}, brush:40, eraser:60,
-  tplName:null,
+  tplName:null, groups:{}, baseMat:'keep',
 };
 const images={};          // id -> {img (canvas|img), w, h, url, name}
-let wireCv=null, wireDark=true, regionCv=null;
+let wireCv=null, wireDark=true, regionCv=null, regionNP=null;
 let LAB=null;             // etichette dei pezzi
 let hist=[],histPos=-1,dirty=false;
 let drawing=null, drag=null, hover=null;
@@ -226,10 +252,10 @@ function setStatus(s){$('#status').textContent=s;}
 function busy(msg){const b=$('#busy');if(msg){b.textContent=msg;b.hidden=false;}else b.hidden=true;}
 function newId(){return 'L'+(S.uid++);}
 const getLayer=id=>S.layers.find(l=>l.id===id), selLayer=()=>getLayer(S.sel);
-function snapshot(){return JSON.stringify({layers:S.layers,base:S.base,axis:S.axis,uid:S.uid,sel:S.sel});}
+function snapshot(){return JSON.stringify({layers:S.layers,base:S.base,baseMat:S.baseMat,groups:S.groups,axis:S.axis,uid:S.uid,sel:S.sel});}
 function commit(){hist=hist.slice(0,histPos+1);hist.push(snapshot());if(hist.length>80)hist.shift();histPos=hist.length-1;dirty=true;updateUndo();afterChange();}
 function afterChange(){if(typeof scheduleSave==='function')scheduleSave();if(typeof scheduleGame==='function')scheduleGame();}
-function restore(js){const o=JSON.parse(js);S.layers=o.layers;S.base=o.base;S.axis=o.axis;S.uid=Math.max(S.uid,o.uid);S.sel=getLayer(o.sel)?o.sel:null;refreshAll();}
+function restore(js){const o=JSON.parse(js);S.layers=o.layers;S.base=o.base;S.baseMat=o.baseMat||'keep';S.groups=o.groups||{};S.axis=o.axis;S.uid=Math.max(S.uid,o.uid);S.sel=getLayer(o.sel)?o.sel:null;refreshAll();}
 function undo(){if(histPos>0){histPos--;restore(hist[histPos]);updateUndo();afterChange();}}
 function redo(){if(histPos<hist.length-1){histPos++;restore(hist[histPos]);updateUndo();afterChange();}}
 function updateUndo(){$('#bUndo').disabled=histPos<=0;$('#bRedo').disabled=histPos>=hist.length-1;}
@@ -306,6 +332,9 @@ async function analyze(rgba){
     if(dark){const m=r>g?(r>b?r:b):(g>b?g:b);if(m>40)st[i]=1;}else{if(r+g+b<540)st[i]=1;}
     if(g>r+30&&g>b+30&&g>60)grn[i]=1;
   }
+  // se quasi tutte le linee sono verdi (es. Ferrari 499P) il verde non segna i pannelli ma ogni triangolo: lo ignoro
+  let nl=0,ng=0;for(let i=0;i<NN;i+=7){if(st[i]===1){nl++;if(grn[i])ng++;}}
+  const greenSeams=!(nl&&ng/nl>0.5);if(!greenSeams)grn.fill(0);
   const Q=new Int32Array(NN);
   // 1) sfondo: componenti 4-connesse; quelle che toccano il bordo (o enormi) sono "fuori"
   for(let s=0;s<NN;s++){
@@ -349,10 +378,10 @@ async function analyze(rgba){
       if(x>0&&pan[i-1]&&isl[i-1]===isl[i])v=pan[i-1];else if(x<N-1&&pan[i+1]&&isl[i+1]===isl[i])v=pan[i+1];else if(y>0&&pan[i-N]&&isl[i-N]===isl[i])v=pan[i-N];else if(y<N-1&&pan[i+N]&&isl[i+N]===isl[i])v=pan[i+N];
       if(v){pan[i]=v;ch++;const b=pb[v];if(x<b[0])b[0]=x;if(x>b[2])b[2]=x;if(y<b[1])b[1]=y;if(y>b[3])b[3]=y;}}
     if(!ch)break;}
-  LAB={isl,pan,ib,pb,ver:(LAB?LAB.ver:0)+1};
+  LAB={isl,pan,ib,pb,seams:greenSeams&&ng>0,ver:(LAB?LAB.ver:0)+1};
   for(const k in FC)delete FC[k];
   busy(null);
-  setStatus(`Template pronto: ${ni} pezzi, ${np} pannelli (${Math.round(performance.now()-t0)} ms)`);
+  setStatus(LAB.seams?`Template pronto: ${ni} pezzi, ${np} pannelli (${Math.round(performance.now()-t0)} ms)`:`Template pronto: ${ni} pezzi. Il wireframe non ha linee verdi dei pannelli: “Riempi pannello” colora il pezzo intero.`);
 }
 function labelAt(mode,x,y){
   if(!LAB)return 0;const ix=Math.floor(x),iy=Math.floor(y);if(ix<0||iy<0||ix>=N||iy>=N)return 0;
@@ -441,8 +470,9 @@ function drawBody(ctx,l,alpha){
     if(alpha<1){/* opacità uniforme sui tratti sovrapposti */const cv=ctx.canvas,t=tmp('pa',cv.width,cv.height),tc=t.getContext('2d');tc.setTransform(ctx.getTransform());for(const s of l.strokes)strokePath(tc,s,s.color);ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(t,0,0);}
     else for(const s of l.strokes)strokePath(ctx,s,s.color);ctx.restore();}
 }
+function vis(l){if(!l.visible)return false;if(l.gp)for(const g of l.gp){const G=S.groups[g];if(G&&!G.on)return false;}return true;}
 function drawLayer(ctx,l,tint,hard){
-  if(!l.visible)return;
+  if(!vis(l))return;
   const alpha=tint?1:(l.opacity??1),hasErase=l.erase&&l.erase.length;
   if(!hasErase&&!tint){drawBody(ctx,l,alpha);return;}
   const cv=ctx.canvas,t=tmp(tint?'tint':'iso',cv.width,cv.height),tc=t.getContext('2d');tc.setTransform(ctx.getTransform());
@@ -452,25 +482,43 @@ function drawLayer(ctx,l,tint,hard){
     if(hard){const id=tc.getImageData(0,0,cv.width,cv.height),d=id.data;for(let i=3;i<d.length;i+=4)d[i]=d[i]>=128?255:0;tc.putImageData(id,0,0);}}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(t,0,0);ctx.restore();
 }
-function drawScene(ctx){ctx.save();ctx.fillStyle=S.base;ctx.fillRect(0,0,N,N);for(const l of S.layers)drawLayer(ctx,l);ctx.restore();}
+// forView: le guide del template (maschera, posizione dei display) si vedono solo nell'editor, mai nei file esportati
+function drawScene(ctx,forView){ctx.save();ctx.fillStyle=S.base;ctx.fillRect(0,0,N,N);for(const l of S.layers)if(forView||!l.guide)drawLayer(ctx,l);ctx.restore();}
+/* mappa dei materiali del template senza le zone nere (vernice): serve quando la base ha un materiale suo */
+function regionNoPaint(){
+  if(regionNP||!regionCv)return regionNP;
+  const c=mk(N,N),x=c.getContext('2d');x.drawImage(regionCv,0,0,N,N);const id=x.getImageData(0,0,N,N),d=id.data;
+  for(let i=0;i<d.length;i+=4)if(d[i]+d[i+1]+d[i+2]<96)d[i+3]=0;
+  x.putImageData(id,0,0);return regionNP=c;
+}
 function drawRegions(ctx,hard){
-  ctx.save();ctx.fillStyle='#000';ctx.fillRect(0,0,N,N);if(regionCv)ctx.drawImage(regionCv,0,0,N,N);
-  for(const l of S.layers){const m=l.mat&&MATCOL[l.mat];if(m)drawLayer(ctx,l,m,hard);}ctx.restore();
+  const bm=S.baseMat&&S.baseMat!=='keep'?MATCOL[S.baseMat]:null;
+  ctx.save();ctx.fillStyle=bm||'#000';ctx.fillRect(0,0,N,N);
+  const rc=bm&&S.baseMat!=='paint'?regionNoPaint():regionCv;if(rc)ctx.drawImage(rc,0,0,N,N);
+  for(const l of S.layers){const m=!l.guide&&l.mat&&MATCOL[l.mat];if(m)drawLayer(ctx,l,m,hard);}ctx.restore();
 }
 
 const view=$('#view'),vctx=view.getContext('2d');let dpr=1,needs=false;
 function resizeView(){const r=view.getBoundingClientRect();dpr=window.devicePixelRatio||1;view.width=Math.max(10,Math.round(r.width*dpr));view.height=Math.max(10,Math.round(r.height*dpr));requestDraw();}
 function requestDraw(){if(needs)return;needs=true;requestAnimationFrame(()=>{needs=false;render();});}
+/* se il verde del wireframe non indica i pannelli (es. tutto verde), lo mostro in grigio: sulla vernice resta leggibile */
+let wireV=null;
+function wireView(){
+  if(!LAB||LAB.seams)return wireCv;if(wireV&&wireV.src===wireCv)return wireV.cv;
+  const c=mk(N,N),x=c.getContext('2d');x.drawImage(wireCv,0,0);const id=x.getImageData(0,0,N,N),d=id.data;
+  for(let i=0;i<d.length;i+=4){const v=Math.max(d[i],d[i+1],d[i+2]);d[i]=d[i+1]=d[i+2]=v;}
+  x.putImageData(id,0,0);wireV={src:wireCv,cv:c};return c;
+}
 const s2w=(px,py)=>({x:(px-S.view.x)/S.view.z,y:(py-S.view.y)/S.view.z});
 function render(){
   const c=vctx,z=S.view.z;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,view.width,view.height);
   c.setTransform(dpr*z,0,0,dpr*z,dpr*S.view.x,dpr*S.view.y);
   c.save();c.beginPath();c.rect(0,0,N,N);c.clip();
-  if(S.mode==='regions')drawRegions(c);else drawScene(c);
-  if(wireCv&&S.wire.on){c.save();c.globalAlpha=S.wire.op;c.globalCompositeOperation=wireDark?'difference':'multiply';c.drawImage(wireCv,0,0,N,N);c.restore();}
+  if(S.mode==='regions')drawRegions(c);else drawScene(c,true);
+  if(wireCv&&S.wire.on){c.save();c.globalAlpha=S.wire.op;c.globalCompositeOperation=wireDark?'difference':'multiply';c.drawImage(wireView(),0,0,N,N);c.restore();}
   c.restore();
   c.save();c.strokeStyle='rgba(120,120,120,.9)';c.lineWidth=1.5/z;c.strokeRect(0,0,N,N);
-  if(S.layers.some(l=>l.mirror&&l.visible)){c.setLineDash([14/z,10/z]);c.strokeStyle='rgba(255,140,0,.6)';c.beginPath();c.moveTo(0,S.axis);c.lineTo(N,S.axis);c.stroke();}
+  if(S.layers.some(l=>l.mirror&&vis(l))){c.setLineDash([14/z,10/z]);c.strokeStyle='rgba(255,140,0,.6)';c.beginPath();c.moveTo(0,S.axis);c.lineTo(N,S.axis);c.stroke();}
   c.restore();
   overlay(c);$('#zVal').textContent=Math.round(z*100)+'%';
 }
@@ -485,7 +533,7 @@ function xformHandles(l){
   return{t,corners:[P(-t.w/2,-t.h/2),P(t.w/2,-t.h/2),P(t.w/2,t.h/2),P(-t.w/2,t.h/2)],top:P(0,-t.h/2),rot:P(0,-t.h/2-34/S.view.z)};
 }
 function hitXform(l,w){
-  if(!l||l.locked||!l.visible||S.tool!=='select')return null;const H=xformHandles(l);if(!H)return null;const r=HR()*1.8;
+  if(!l||l.locked||!vis(l)||S.tool!=='select')return null;const H=xformHandles(l);if(!H)return null;const r=HR()*1.8;
   if(Math.hypot(H.rot.x-w.x,H.rot.y-w.y)<=r)return{kind:'rot',H};
   for(const p of H.corners)if(Math.hypot(p.x-w.x,p.y-w.y)<=r)return{kind:'scale',H};
   return null;
@@ -493,13 +541,13 @@ function hitXform(l,w){
 function overlay(c){
   const z=S.view.z,l=selLayer(),selC=getComputedStyle(document.documentElement).getPropertyValue('--sel').trim()||'#0f7b6c';
   c.save();c.lineWidth=1.5/z;c.strokeStyle=selC;c.fillStyle='#fff';
-  if(l&&l.visible&&S.tool==='select'){
+  if(l&&vis(l)&&S.tool==='select'){
     if(l.type==='shape'){c.stroke(shapePath(l));for(const p of l.pts){c.beginPath();if(p.c)c.rect(p.x-HR(),p.y-HR(),HR()*2,HR()*2);else c.arc(p.x,p.y,HR(),0,7);c.fill();c.stroke();}}
     else if(l.type==='text'||l.type==='image'){const b=l.type==='text'?textBox(l):imgBox(l);c.translate(l.x,l.y);c.rotate((l.rot||0)*Math.PI/180);c.setLineDash(l.locked?[6/z,5/z]:[]);c.strokeRect(-b.w/2,-b.h/2,b.w,b.h);}
     else if(l.type==='fill'){const f=FC[l.id];if(f&&f.cv){c.setLineDash([8/z,6/z]);c.strokeRect(f.x,f.y,f.cv.width,f.cv.height);}}
   }
   c.restore();
-  if(l&&l.visible&&S.tool==='select'&&!l.locked){const H=xformHandles(l);if(H){
+  if(l&&vis(l)&&S.tool==='select'&&!l.locked){const H=xformHandles(l);if(H){
     c.save();c.lineWidth=1.5/z;c.strokeStyle=selC;c.fillStyle='#fff';
     if(l.type==='shape'){c.setLineDash([6/z,5/z]);c.beginPath();H.corners.forEach((q,i)=>i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y));c.closePath();c.stroke();c.setLineDash([]);}
     c.beginPath();c.moveTo(H.top.x,H.top.y);c.lineTo(H.rot.x,H.rot.y);c.stroke();
@@ -557,7 +605,7 @@ const hitCtx=mk(2,2).getContext('2d');
 function inBox(l,w,y,rot){const b=l.type==='text'?textBox(l):imgBox(l),a=-(rot||0)*Math.PI/180,dx=w.x-l.x,dy=w.y-y;const lx=dx*Math.cos(a)-dy*Math.sin(a),ly=dx*Math.sin(a)+dy*Math.cos(a);return Math.abs(lx)<=b.w/2&&Math.abs(ly)<=b.h/2;}
 function hitLayer(w){
   for(let i=S.layers.length-1;i>=0;i--){
-    const l=S.layers[i];if(!l.visible)continue;
+    const l=S.layers[i];if(!vis(l))continue;
     if(l.type==='shape'){const p=shapePath(l);if(hitCtx.isPointInPath(p,w.x,w.y)||(l.mirror&&hitCtx.isPointInPath(p,w.x,mirrorY(w.y))))return l;}
     else if(l.type==='fill'){const c=fillCache(l);if(c&&c.ids.has(labelAt(l.mode,w.x,w.y)))return l;}
     else if(l.type==='text'||l.type==='image'){if(inBox(l,w,l.y,l.rot)||(l.mirror&&inBox(l,w,mirrorY(l.y),(l.rot||0)+(l.mirrorRot?180:0))))return l;}
@@ -565,7 +613,7 @@ function hitLayer(w){
   return null;
 }
 function nearestSeg(l,w){let best=-1,bd=40/S.view.z;const n=l.pts.length;for(let i=0;i<n;i++){const a=l.pts[i],b=l.pts[(i+1)%n],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy||1,t=clamp(((w.x-a.x)*dx+(w.y-a.y)*dy)/len,0,1),d=Math.hypot(a.x+t*dx-w.x,a.y+t*dy-w.y);if(d<bd){bd=d;best=i;}}return best;}
-let panning=null,spaceDown=false;
+let panning=null,spaceDown=false,nudgeT=null;
 view.addEventListener('pointerdown',e=>{
   view.setPointerCapture(e.pointerId);const w=evWorld(e),{px,py}=evPos(e);
   if(e.button===1||e.button===2||spaceDown||S.tool==='pan'){panning={px,py,vx:S.view.x,vy:S.view.y};view.style.cursor='grabbing';return;}
@@ -642,6 +690,11 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space'){spaceDown=true;view.style.cursor='grab';e.preventDefault();return;}
   if(e.key==='Enter'&&drawing){finishDrawing();return;}
   if(e.key==='Escape'){drawing=null;drag=null;setTool('select');return;}
+  if(e.key.startsWith('Arrow')&&S.sel&&tg!=='input'){const l=selLayer();if(!l||l.locked||l.type==='fill'){if(l&&l.locked)toast('Il livello è bloccato.');return;}e.preventDefault();
+    const st=e.shiftKey?10:1,dx=e.key==='ArrowLeft'?-st:e.key==='ArrowRight'?st:0,dy=e.key==='ArrowUp'?-st:e.key==='ArrowDown'?st:0;
+    if(l.type==='shape')l.pts.forEach(p=>{p.x+=dx;p.y+=dy;});else if(l.type==='paint')l.strokes.forEach(s=>{s.pts=s.pts.map((v,k)=>v+(k%2?dy:dx));});else{l.x+=dx;l.y+=dy;}
+    requestDraw();clearTimeout(nudgeT);nudgeT=setTimeout(()=>{commit();buildProps();},400);return;}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'&&S.sel){e.preventDefault();dupLayer(S.sel);return;}
   if((e.key==='Delete'||e.key==='Backspace')&&S.sel){deleteLayer(S.sel);return;}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   const k=e.key.toLowerCase(),t=TOOLS.find(x=>x&&x[2]===k);if(t){if(t[0]==='image')$('#fImg').click();else setTool(t[0]);}
@@ -671,8 +724,9 @@ function buildTools(){
     b.innerHTML=`<svg viewBox="0 0 24 24">${ICONS[id]}</svg><kbd>${k.toUpperCase()}</kbd>`;box.append(b);}
 }
 function setTool(t){S.tool=t;if(t!=='free'&&!(drawing&&drawing.lasso))drawing=null;buildTools();buildOpts();setHint();view.style.cursor='';requestDraw();}
+let showHints=true;try{showHints=localStorage.getItem('liverylab-hints')!=='0';}catch(e){}
 function setHint(){
-  const H={select:'Clic per selezionare. Gli angoli del riquadro ridimensionano, il pallino in alto ruota (Maiusc per scatti di 15°). Trascina i punti di una forma per modellarla: doppio clic su un punto lo rende angolo netto, doppio clic sul bordo aggiunge un punto, clic destro lo toglie.',
+  const H={select:'Clic per selezionare. Gli angoli del riquadro ridimensionano, il pallino in alto ruota (Maiusc per scatti di 15°). Trascina i punti di una forma per modellarla: doppio clic su un punto lo rende angolo netto, doppio clic sul bordo aggiunge un punto, clic destro lo toglie. Frecce: sposta di 1 px (Maiusc 10 px). Ctrl+D duplica.',
     island:LAB?'Clic su un pezzo per colorarlo tutto. Con lo stesso colore, altri clic aggiungono pezzi allo stesso livello; un clic su un pezzo già colorato lo toglie.':'Apri prima il template PSD: i pezzi si ricavano dal wireframe.',
     panel:LAB?'Clic su un pannello: il colore segue le linee verdi del template. Stesso colore, stesso livello.':'Apri prima il template PSD: i pannelli si ricavano dal wireframe.',
     free:drawing&&drawing.pts.length?'Altri clic per i punti (Maiusc per un angolo). Doppio clic, Invio o clic sul primo punto per chiudere.':'Clic per il primo punto della lama.',
@@ -680,7 +734,7 @@ function setHint(){
     brush:'Dipingi a mano libera. Ogni sessione di pennello va nel livello pennello selezionato.',
     eraser:'Cancella dal livello selezionato. Le parti cancellate si possono ripristinare dalle proprietà.',
     rect:'Trascina per disegnare un rettangolo.',ellipse:'Trascina per disegnare un’ellisse.',text:'Clic sulla tela per aggiungere un testo.',pan:'Trascina per spostare la vista.'};
-  $('#hint').textContent=H[S.tool]||'';
+  $('#hint').textContent=H[S.tool]||'';$('#hint').hidden=!showHints||!H[S.tool];
 }
 function buildOpts(){
   const o=$('#opts');o.innerHTML='';const t=S.tool;
@@ -754,12 +808,13 @@ function readPSD(buf){
     }
   }
   // gruppi: i record vanno dal basso verso l'alto; risalgo dall'alto per costruire i percorsi
-  const stack=[];
+  const stack=[],groups={};
   for(let i=L.length-1;i>=0;i--){const l=L[i];
-    if(l.sect===1||l.sect===2){l.isGroup=true;l.path=stack.map(g=>g.name);l.groupHidden=stack.some(g=>g.hidden);stack.push({name:l.name,hidden:l.hidden});continue;}
+    if(l.sect===1||l.sect===2){l.isGroup=true;l.path=stack.map(g=>g.name);l.groupHidden=stack.some(g=>g.hidden);
+      const g={id:'g'+i,name:l.name,hidden:l.hidden,parent:stack.length?stack[stack.length-1].id:null};groups[g.id]=g;stack.push(g);continue;}
     if(l.sect===3){l.isDivider=true;stack.pop();continue;}
-    l.path=stack.map(g=>g.name);l.groupHidden=stack.some(g=>g.hidden);}
-  return{W,H,layers:L};
+    l.path=stack.map(g=>g.name);l.gids=stack.map(g=>g.id);l.groupHidden=stack.some(g=>g.hidden);}
+  return{W,H,layers:L,groups};
 }
 function layerRGBA(l){
   const w=l.right-l.left,h=l.bottom-l.top;if(w<=0||h<=0||!l.data[0])return null;
@@ -770,6 +825,16 @@ function layerRGBA(l){
     out[q+3]=al;}
   return{w,h,rgba:out};
 }
+const STICKER_RE=/sticker|number|plate|board|class|logo|decal|banner|michelin|goodyear/i, GUIDE_RE=/disable\s*for\s*export|position/i;
+function baseColorOf(l){
+  const w=l.right-l.left,h=l.bottom-l.top;
+  if(l.left>0||l.top>0||l.right<N*.99||l.bottom<N*.99)return null;
+  if(l.soco)return l.soco;
+  const r=l.data[0],g=l.data[1]||r,b=l.data[2]||r,a=l.data[-1];if(!r||w<=0||h<=0)return null;
+  const n=w*h,c=[r[0],g[0],b[0]];
+  for(let i=0;i<n;i+=1013){if(Math.abs(r[i]-c[0])>2||Math.abs(g[i]-c[1])>2||Math.abs(b[i]-c[2])>2||(a&&a[i]<250))return null;}
+  return c;
+}
 function toCanvas(px){const c=mk(px.w,px.h);c.getContext('2d').putImageData(new ImageData(px.rgba,px.w,px.h),0,0);return c;}
 async function importPSD(buf,fname){
   busy('Leggo il PSD…');await tick();
@@ -777,20 +842,28 @@ async function importPSD(buf,fname){
   if(psd.W!==N||psd.H!==N)toast(`Il template è ${psd.W}×${psd.H}: l’editor lavora a 4096, lo adatto.`,4000);
   busy('Preparo livelli, adesivi e materiali…');await tick();
   // nuova sessione
-  S.layers=[];S.sel=null;for(const k in images)delete images[k];regionCv=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
-  let uvw=null,regCount=0,imp=0;const rc=mk(N,N),rx=rc.getContext('2d');rx.fillStyle='#000';rx.fillRect(0,0,N,N);
+  S.layers=[];S.sel=null;S.groups={};S.baseMat='keep';for(const k in images)delete images[k];regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
+  let uvw=null,regCount=0,imp=0,baseFound=false,over=false;const rc=mk(N,N),rx=rc.getContext('2d');rx.fillStyle='#000';rx.fillRect(0,0,N,N);
+  const hex=c=>'#'+c.map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
   for(const l of psd.layers){
     if(l.isGroup||l.isDivider||l.adjust)continue;
     const inRegion=l.path.some(p=>/^region/i.test(p))||/^region/i.test(l.name);
     if(/^(uvw|wire)/i.test(l.name)||(l.blend==='scrn'&&/uv/i.test(l.name))){uvw=l;continue;}
     if(inRegion){const px=layerRGBA(l);if(px){rx.drawImage(toCanvas(px),l.left,l.top);regCount++;}continue;}
-    if(/^base colou?r/i.test(l.name)&&l.soco){S.base='#'+l.soco.map(v=>clamp(v,0,255).toString(16).padStart(2,'0')).join('');continue;}
+    if(/^base colou?r/i.test(l.name)&&l.soco){S.base=hex(l.soco);baseFound=true;continue;}
+    // il primo livello in basso, se è un colore unico su tutta la tela, è la base: diventa il “Colore base” modificabile
+    if(!baseFound&&!S.layers.length){baseFound=true;const c=baseColorOf(l);if(c){S.base=hex(c);continue;}}
+    const top=l.path[0]||l.name;
+    // tutto quello che viene dopo il primo gruppo di adesivi/numeri sta sopra i livelli dell'utente; carrozzeria, carbonio e plastiche sotto
+    if(!over&&STICKER_RE.test(top)&&!/carbon/i.test(top))over=true;
+    const guide=GUIDE_RE.test(l.name)||l.path.some(p=>GUIDE_RE.test(p));
     const px=layerRGBA(l);if(!px)continue;
     let any=false;for(let i=3;i<px.rgba.length;i+=4*7){if(px.rgba[i]){any=true;break;}}if(!any)continue;
     const id='I'+(S.uid++),cv=toCanvas(px);images[id]={img:cv,w:px.w,h:px.h,url:null,name:l.name};
-    const onTop=!l.path.some(p=>/carbon/i.test(p));
-    S.layers.push({id:newId(),type:'image',name:l.name+(l.path.length?` · ${l.path[0]}`:''),onTop,imgId:id,x:l.left+px.w/2,y:l.top+px.h/2,scale:1,rot:0,mirror:false,mirrorRot:true,
-      visible:!l.hidden&&!l.groupHidden,opacity:l.opacity/255,locked:true,mat:'keep',fromTemplate:true});imp++;
+    const onTop=guide||(over&&!l.path.some(p=>/carbon/i.test(p)));
+    for(const g of l.gids){const G=psd.groups[g];if(!S.groups[g])S.groups[g]={name:G.name,parent:G.parent,on:!G.hidden};}
+    S.layers.push({id:newId(),type:'image',name:l.name,onTop,imgId:id,x:l.left+px.w/2,y:l.top+px.h/2,scale:1,rot:0,mirror:false,mirrorRot:true,
+      visible:guide?!/mask|disable/i.test(l.name):!l.hidden,opacity:l.opacity/255,locked:true,mat:'keep',fromTemplate:true,gp:l.gids.slice(),guide:guide||undefined});imp++;
   }
   if(regCount)regionCv=rc;
   S.tplName=fname;
@@ -825,6 +898,20 @@ $('#fTpl').addEventListener('change',async()=>{
   try{if(/\.psd$/i.test(f.name))await importPSD(await f.arrayBuffer(),f.name);else await importGuideImage(f);}catch(e){busy(null);toast('Errore: '+e.message,5000);}
 });
 
+/* trascinare file sulla tela: PSD/guida apre il template, le immagini diventano loghi */
+{const st=$('#stage');let dz=null,depth=0;
+  st.addEventListener('dragenter',e=>{if(![...(e.dataTransfer.types||[])].includes('Files'))return;e.preventDefault();depth++;if(!dz){dz=el('div',{class:'drop'},'Rilascia qui: PSD per il template, immagini per i loghi');st.append(dz);}});
+  st.addEventListener('dragover',e=>{if(dz)e.preventDefault();});
+  st.addEventListener('dragleave',()=>{if(--depth<=0&&dz){dz.remove();dz=null;depth=0;}});
+  st.addEventListener('drop',async e=>{if(!dz)return;e.preventDefault();dz.remove();dz=null;depth=0;
+    const fs=[...e.dataTransfer.files];const tpl=fs.find(f=>/\.(psd|tga)$/i.test(f.name));
+    try{
+      if(tpl){if(S.layers.some(l=>!l.fromTemplate)&&!confirm('Aprire un nuovo template sostituisce il lavoro attuale. Continuo?'))return;
+        if(/\.psd$/i.test(tpl.name))await importPSD(await tpl.arrayBuffer(),tpl.name);else await importGuideImage(tpl);return;}
+      if(!wireCv&&!S.layers.length&&fs.length===1&&/image/.test(fs[0].type)&&confirm('Uso questa immagine come guida (wireframe) del template? Annulla per aggiungerla come logo.')){await importGuideImage(fs[0]);return;}
+      for(const f of fs)if(/^image\//.test(f.type)){await addImageBlob(f,f.name.replace(/\.[^.]+$/,''));if(lib)libAdd(f);}
+    }catch(err){busy(null);toast('Errore: '+err.message,5000);}
+  });}
 /* immagini utente */
 $('#fImg').addEventListener('change',async()=>{const fs=[...$('#fImg').files];$('#fImg').value='';for(const f of fs){await addImageBlob(f,f.name.replace(/\.[^.]+$/,''));if(lib)libAdd(f);}});
 async function addImageBlob(blob,name){
@@ -887,30 +974,80 @@ function refreshAll(){refreshPanels();requestDraw();}
 function refreshPanels(){buildLayers();buildProps();buildDoc();$('#empty').hidden=!!(wireCv||S.layers.length);}
 function deleteLayer(id){const l=getLayer(id);if(l&&l.fromTemplate&&!confirm(`“${l.name}” arriva dal template ufficiale. Lo elimino lo stesso?`))return;S.layers=S.layers.filter(x=>x.id!==id);if(S.sel===id)S.sel=null;commit();refreshAll();}
 function moveLayer(id,dir){const i=S.layers.findIndex(l=>l.id===id),j=i+dir;if(j<0||j>=S.layers.length)return;[S.layers[i],S.layers[j]]=[S.layers[j],S.layers[i]];commit();refreshAll();}
-function dupLayer(id){const l=getLayer(id),c=JSON.parse(JSON.stringify(l));c.id=newId();c.name=l.name+' copia';c.fromTemplate=false;c.locked=false;
+function dupLayer(id){const l=getLayer(id),c=JSON.parse(JSON.stringify(l));c.id=newId();c.name=l.name+' copia';c.fromTemplate=false;c.locked=false;delete c.gp;delete c.guide;
   if(c.type==='shape')c.pts.forEach(p=>{p.x+=40;p.y+=40;});else if(c.type==='text'||c.type==='image'){c.x+=40;c.y+=40;}
   S.layers.splice(S.layers.indexOf(l)+1,0,c);S.sel=c.id;commit();refreshAll();}
-function chip(l){const s=el('span',{class:'chip'});if(l.type==='image'){const im=images[l.imgId];if(im)s.style.background='#888';}else s.style.background=l.type==='paint'?(l.strokes[0]?.color||'#888'):l.color;return s;}
+function thumb(im){if(im.thumb)return im.thumb;const k=28/Math.max(im.w,im.h),c=mk(Math.max(1,Math.round(im.w*k)),Math.max(1,Math.round(im.h*k)));c.getContext('2d').drawImage(im.img,0,0,c.width,c.height);return im.thumb=c.toDataURL();}
+function chip(l){const s=el('span',{class:'chip'});if(l.type==='image'){const im=images[l.imgId];if(im){s.style.backgroundImage=`url(${thumb(im)})`;s.classList.add('chk-bg');}}else s.style.background=l.type==='paint'?(l.strokes[0]?.color||'#888'):l.color;return s;}
 const TYPEN={shape:'forma',fill:'riempimento',paint:'pennello',text:'testo',image:'immagine'};
+const openG=new Set();
+const VARIANT_RE=/\b(wec|lm|le ?mans|24 ?h|elms|imsa|20\d\d)\b/i;
+function gKids(g){return Object.keys(S.groups).filter(k=>S.groups[k].parent===g&&S.layers.some(l=>l.gp&&l.gp.includes(k)));}
+function gLayers(g){return S.layers.filter(l=>l.gp&&l.gp.includes(g));}
+function varLabel(n){return /^lm$/i.test(n)?'Le Mans 24h':/^wec$/i.test(n)?'WEC':n;}
+/* gruppi con più set alternativi (WEC/LM, 2024/2025…): scendo dai gruppi principali finché non trovo una scelta */
+function variantHosts(){
+  const out=[];
+  for(const top of gKids(null)){let g=top;
+    for(let d=0;d<4;d++){const k=gKids(g);if(k.length>=2){if(k.filter(x=>VARIANT_RE.test(S.groups[x].name)).length>=2)out.push(g);break;}if(k.length!==1||S.layers.some(l=>l.gp&&l.gp[l.gp.length-1]===g))break;g=k[0];}}
+  return out;
+}
+function variantSeg(g){
+  const kids=gKids(g),on=kids.filter(k=>S.groups[k].on),seg=el('div',{class:'seg vset',role:'group','aria-label':'Set di '+S.groups[g].name});
+  const pick=k=>{for(const x of kids)S.groups[x].on=k==null||x===k;S.groups[g].on=true;for(let p=S.groups[g].parent;p;p=S.groups[p].parent)S.groups[p].on=true;commit();refreshAll();};
+  for(const k of kids)seg.append(el('button',{'aria-pressed':String(on.length===1&&on[0]===k),title:S.groups[k].name,onclick:()=>pick(k)},varLabel(S.groups[k].name)));
+  if(kids.length)seg.append(el('button',{'aria-pressed':String(on.length===kids.length&&kids.length>1),title:'Usa tutti i set insieme',onclick:()=>pick(null)},'Tutti'));
+  return seg;
+}
+function layerRow(l){
+  return el('li',{class:'layer'+(l.id===S.sel?' sel':'')+(vis(l)?'':' off')+(l.guide?' guide':'')},
+    el('button',{class:'ib eye',title:l.visible?'Nascondi':'Mostra','aria-label':(l.visible?'Nascondi ':'Mostra ')+l.name,onclick:()=>{l.visible=!l.visible;commit();refreshAll();}},l.visible?'●':'○'),
+    chip(l),
+    el('span',{class:'nm',title:`${l.name} (${l.guide?'guida, non viene esportata':TYPEN[l.type]})`,onclick:()=>{S.sel=l.id;if(S.tool!=='select'&&S.tool!=='eraser'&&S.tool!=='brush')setTool('select');refreshPanels();requestDraw();}},l.name),
+    l.guide?el('span',{class:'tag',title:'Guida del template: si vede solo qui, non finisce nei file'},'guida'):null,
+    l.locked?el('span',{class:'note',style:'margin:0',title:'Bloccato'},'🔒'):null,
+    l.mat&&l.mat!=='keep'?el('span',{class:'chip',title:'Materiale: '+MATS.find(m=>m[0]===l.mat)[1],style:`background:${MATCOL[l.mat]}`}):null,
+    el('button',{class:'ib',title:'Porta avanti','aria-label':'Porta avanti',onclick:()=>moveLayer(l.id,1)},'↑'),
+    el('button',{class:'ib',title:'Porta indietro','aria-label':'Porta indietro',onclick:()=>moveLayer(l.id,-1)},'↓'),
+    l.fromTemplate?null:el('button',{class:'ib',title:'Duplica (Ctrl+D)','aria-label':'Duplica',onclick:()=>dupLayer(l.id)},'⧉'),
+    el('button',{class:'ib',title:'Elimina','aria-label':'Elimina',onclick:()=>deleteLayer(l.id)},'✕'));
+}
+function groupNode(g){
+  const G=S.groups[g],kids=gKids(g),own=[...S.layers].reverse().filter(l=>l.gp&&l.gp[l.gp.length-1]===g),n=gLayers(g).length;
+  const d=el('details',{class:'grp'+(G.on?'':' off')});d.open=openG.has(g);d.addEventListener('toggle',()=>{if(d.open)openG.add(g);else openG.delete(g);});
+  const eye=el('button',{class:'ib eye',title:G.on?'Nascondi il gruppo':'Mostra il gruppo','aria-label':(G.on?'Nascondi ':'Mostra ')+G.name,onclick:e=>{e.preventDefault();G.on=!G.on;commit();refreshAll();}},G.on?'●':'○');
+  d.append(el('summary',{},eye,el('span',{class:'gname',title:G.name},G.name),el('span',{class:'cnt'},String(n))));
+  const body=el('ul',{class:'layers'});
+  if(kids.length>=2&&kids.filter(k=>VARIANT_RE.test(S.groups[k].name)).length>=2)body.append(el('li',{class:'vrow'},variantSeg(g)));
+  for(const k of kids)body.append(el('li',{},groupNode(k)));
+  for(const l of own)body.append(layerRow(l));
+  d.append(body);return d;
+}
 function buildLayers(){
   const p=$('#paneL');p.innerHTML='';
-  if(!S.layers.length){p.append(el('p',{class:'note'},wireCv?'Nessun livello ancora. Prova “Riempi un pezzo” (F) e clicca sulla carrozzeria.':'Apri il template PSD per iniziare.'));return;}
+  if(!S.layers.length&&!wireCv){p.append(el('p',{class:'note'},'Apri il template PSD per iniziare.'));return;}
+  const hosts=variantHosts();
+  if(hosts.length){
+    const box=el('div',{class:'sec card'},el('h3',{},'Set di adesivi'),el('p',{class:'note'},'Il template ha più versioni dei numeri e degli adesivi obbligatori: scegli quali usare.'));
+    const clean=n=>n.replace(/\s*\(?don'?t move!?\)?\s*/i,'').replace(/\s*-\s*$/,'');
+    for(const g of hosts){const names=[];for(let k=g;k;k=S.groups[k].parent)names.unshift(clean(S.groups[k].name));box.append(el('div',{class:'vline'},el('span',{class:'vname'},names.join(' › ')),variantSeg(g)));}
+    p.append(box);
+  }
   const tplN=S.layers.filter(l=>l.fromTemplate).length;
   if(tplN)p.append(el('div',{class:'row',style:'justify-content:space-between'},el('span',{class:'note',style:'margin:0'},`${tplN} livelli dal template`),
-    el('button',{class:'btn sm',onclick:()=>{const on=!S.layers.filter(l=>l.fromTemplate).every(l=>l.visible);S.layers.forEach(l=>{if(l.fromTemplate)l.visible=on;});commit();refreshAll();}},'Mostra/nascondi tutti')));
-  const ul=el('ul',{class:'layers'});
+    el('button',{class:'btn sm',onclick:()=>{const T=S.layers.filter(l=>l.fromTemplate&&!l.guide),on=!T.every(vis);T.forEach(l=>{l.visible=on;});if(on)for(const k in S.groups)if(!S.groups[k].parent)S.groups[k].on=true;commit();refreshAll();}},'Mostra/nascondi tutti')));
+  const ul=el('ul',{class:'layers'}),done=new Set();
+  if(!S.layers.some(l=>!l.fromTemplate))p.append(el('p',{class:'note'},'Nessun livello tuo ancora. Prova “Riempi un pezzo” (F) e clicca sulla carrozzeria.'));
   [...S.layers].reverse().forEach(l=>{
-    ul.append(el('li',{class:'layer'+(l.id===S.sel?' sel':'')+(l.visible?'':' off')},
-      el('button',{class:'ib',title:l.visible?'Nascondi':'Mostra','aria-label':(l.visible?'Nascondi ':'Mostra ')+l.name,onclick:()=>{l.visible=!l.visible;commit();refreshAll();}},l.visible?'●':'○'),
-      chip(l),
-      el('span',{class:'nm',title:`${l.name} (${TYPEN[l.type]})`,onclick:()=>{S.sel=l.id;if(S.tool!=='select'&&S.tool!=='eraser'&&S.tool!=='brush')setTool('select');refreshPanels();requestDraw();}},l.name),
-      l.locked?el('span',{class:'note',style:'margin:0',title:'Bloccato'},'🔒'):null,
-      l.mat&&l.mat!=='keep'?el('span',{class:'chip',title:'Materiale: '+MATS.find(m=>m[0]===l.mat)[1],style:`background:${MATCOL[l.mat]}`}):null,
-      el('button',{class:'ib',title:'Porta avanti','aria-label':'Porta avanti',onclick:()=>moveLayer(l.id,1)},'↑'),
-      el('button',{class:'ib',title:'Porta indietro','aria-label':'Porta indietro',onclick:()=>moveLayer(l.id,-1)},'↓'),
-      el('button',{class:'ib',title:'Duplica','aria-label':'Duplica',onclick:()=>dupLayer(l.id)},'⧉'),
-      el('button',{class:'ib',title:'Elimina','aria-label':'Elimina',onclick:()=>deleteLayer(l.id)},'✕')));
+    if(l.gp&&l.gp.length&&S.groups[l.gp[0]]){const t=l.gp[0];if(!done.has(t)){done.add(t);ul.append(el('li',{},groupNode(t)));}return;}
+    ul.append(layerRow(l));
   });
+  const bm=MATS.find(m=>m[0]===S.baseMat);
+  ul.append(el('li',{class:'layer base',title:'Colore e materiale della base: si cambiano in Documento'},
+    el('span',{class:'ib eye'},'■'),el('span',{class:'chip',style:`background:${S.base}`}),
+    el('span',{class:'nm',onclick:()=>setTab('D')},'Base'),
+    S.baseMat&&S.baseMat!=='keep'?el('span',{class:'chip',title:'Materiale: '+bm[1],style:`background:${MATCOL[S.baseMat]}`}):null,
+    el('button',{class:'btn sm',onclick:()=>setTab('D')},'Modifica')));
   p.append(ul);
 }
 function ctl(label,input,val){return el('div',{class:'row'},el('label',{},label),input,val||null);}
@@ -987,7 +1124,10 @@ function buildDoc(){
   const p=$('#paneD');p.innerHTML='';
   const base=el('input',{type:'color',value:S.base,'aria-label':'Colore base'});base.addEventListener('input',()=>{S.base=base.value;requestDraw();});base.addEventListener('change',()=>commit());
   const ax=el('input',{type:'number',value:S.axis,step:.5,min:0,max:N,'aria-label':'Asse di specchio'});ax.addEventListener('change',()=>{S.axis=clamp(+ax.value||0,0,N);commit();requestDraw();});
-  p.append(el('div',{class:'sec'},el('h3',{},'Base'),swatchRow(c=>{S.base=c;commit();refreshAll();}),ctl('Colore base',base),el('p',{class:'note'},'Riempie tutta la tela sotto i tuoi livelli.')));
+  const bmat=el('select',{'aria-label':'Materiale della base'});MATS.forEach(([k,n])=>bmat.append(el('option',{value:k,selected:k===(S.baseMat||'keep')},k==='keep'?'Come nel template':n)));
+  bmat.addEventListener('change',()=>{S.baseMat=bmat.value;commit();refreshAll();if(S.baseMat!=='keep'&&S.mode!=='regions')toast('Guarda il risultato con la vista “Materiali”. I dettagli che devono restare vernice: Materiale → Vernice.',5000);});
+  p.append(el('div',{class:'sec'},el('h3',{},'Base'),swatchRow(c=>{S.base=c;commit();refreshAll();}),ctl('Colore base',base),ctl('Materiale',bmat),
+    el('p',{class:'note'},'Il colore riempie tutta la tela sotto i tuoi livelli. Il materiale vale per tutta la carrozzeria verniciata: le parti in carbonio e gli adesivi del template restano come sono. Per i dettagli che devono tornare vernice normale (region nero), scegli Materiale → Vernice nelle loro proprietà.')));
   p.append(el('div',{class:'sec'},el('h3',{},'Linee del template'),checkCtl('Mostra le linee',()=>S.wire.on,v=>{S.wire.on=v;$('#bWire').setAttribute('aria-pressed',String(v));}),
     rangeCtl('Intensità',()=>Math.round(S.wire.op*100),v=>{S.wire.op=v/100;},10,100,1,v=>v+'%'),el('p',{class:'note'},'Le linee servono solo come guida e non vengono esportate.')));
   p.append(el('div',{class:'sec'},el('h3',{},'Asse di specchio'),ctl('Posizione y',ax),el('p',{class:'note'},'Le forme con “Duplica sull’altro lato” si riflettono rispetto a questa riga orizzontale. Nel template della Genesis i due fianchi sono sopra e sotto la metà della tela: parti da 2048 e correggi guardando la linea arancione.')));
@@ -1002,8 +1142,11 @@ function buildDoc(){
   }
   p.append(el('div',{class:'sec'},el('h3',{},'Esportare per LMU'),el('p',{class:'note'},FS_OK?'“Esporta nel gioco” scrive customskin.tga (la livrea) e customskin_region.tga (i materiali) direttamente nella cartella della livrea. “Esporta zip” crea gli stessi file in uno zip, se preferisci copiarli a mano.':'“Esporta zip” crea uno zip con customskin.tga (la livrea) e customskin_region.tga (i materiali). Estrai lo zip e copia i file nella cartella delle livree custom della tua auto. Aprendo Livery Lab come file in Chrome o Edge puoi invece leggere e scrivere direttamente nelle cartelle del gioco.')));
 }
-$('#vLiv').onclick=()=>{S.mode='livery';$('#vLiv').setAttribute('aria-pressed','true');$('#vMat').setAttribute('aria-pressed','false');requestDraw();};
-$('#vMat').onclick=()=>{S.mode='regions';$('#vMat').setAttribute('aria-pressed','true');$('#vLiv').setAttribute('aria-pressed','false');requestDraw();if(!regionCv&&!S.layers.some(l=>l.mat&&l.mat!=='keep'))toast('Nessun materiale ancora: imposta “Materiale” nelle proprietà di un livello.');};
+function setLegend(){const lg=$('#legend');lg.hidden=S.mode!=='regions';if(!lg.hidden&&!lg.childElementCount)MATS.filter(m=>m[2]).forEach(m=>lg.append(el('span',{},el('i',{style:`background:${m[2]}`}),m[1].replace(/ \(.*\)/,''))));}
+$('#vLiv').onclick=()=>{S.mode='livery';setLegend();$('#vLiv').setAttribute('aria-pressed','true');$('#vMat').setAttribute('aria-pressed','false');requestDraw();};
+$('#vMat').onclick=()=>{S.mode='regions';setLegend();$('#vMat').setAttribute('aria-pressed','true');$('#vLiv').setAttribute('aria-pressed','false');requestDraw();if(!regionCv&&!S.layers.some(l=>l.mat&&l.mat!=='keep'))toast('Nessun materiale ancora: imposta “Materiale” nelle proprietà di un livello.');};
+$('#bHelp').onclick=()=>{showHints=!showHints;try{localStorage.setItem('liverylab-hints',showHints?'1':'0');}catch(e){}$('#bHelp').setAttribute('aria-pressed',String(showHints));setHint();};
+$('#bHelp').setAttribute('aria-pressed',String(showHints));
 $('#bWire').onclick=()=>{S.wire.on=!S.wire.on;$('#bWire').setAttribute('aria-pressed',String(S.wire.on));buildDoc();requestDraw();};
 
 /* ================= salvataggio ed export ================= */
@@ -1055,7 +1198,7 @@ $('#fProj').addEventListener('change',async()=>{
     busy('Apro il progetto…');await tick();const o=JSON.parse(await f.text());if(o.app!=='liverylab')throw new Error('non è un progetto di Livery Lab');
     for(const k in images)delete images[k];
     for(const id in o.images){const img=await loadImg(o.images[id].url);images[id]={img,w:img.naturalWidth,h:img.naturalHeight,url:o.images[id].url,name:o.images[id].name};}
-    regionCv=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
+    regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
     if(o.region){const i=await loadImg(o.region),c=mk(N,N);c.getContext('2d').drawImage(i,0,0,N,N);regionCv=c;}
     if(o.wire){const i=await loadImg(o.wire),c=mk(N,N),x=c.getContext('2d');x.drawImage(i,0,0,N,N);wireCv=c;wireDark=o.wireDark!==false;await analyze(x.getImageData(0,0,N,N).data);}
     S.tplName=o.tpl||null;restore(JSON.stringify(o.state));hist=[];histPos=-1;commit();dirty=false;fit();busy(null);toast('Progetto aperto.');
@@ -1199,7 +1342,7 @@ async function resumeAutosave(rec){
     busy('Riprendo il lavoro…');await tick();
     for(const k in images)delete images[k];
     for(const id in rec.images){const b=rec.images[id].blob,img=await loadImg(await blobToURL(b));images[id]={img,w:img.naturalWidth,h:img.naturalHeight,url:null,blob:b,name:rec.images[id].name};}
-    regionCv=null;wireCv=null;LAB=null;wireBlob=rec.wire||null;regionBlob=rec.region||null;
+    regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=rec.wire||null;regionBlob=rec.region||null;
     if(rec.region){const i=await loadImg(await blobToURL(rec.region)),c=mk(N,N);c.getContext('2d').drawImage(i,0,0,N,N);regionCv=c;}
     if(rec.wire){const i=await loadImg(await blobToURL(rec.wire)),c=mk(N,N),x=c.getContext('2d');x.drawImage(i,0,0,N,N);wireCv=c;wireDark=rec.wireDark!==false;await analyze(x.getImageData(0,0,N,N).data);}
     S.tplName=rec.tpl||null;restore(rec.state);hist=[];histPos=-1;hist.push(snapshot());histPos=0;updateUndo();dirty=false;fit();busy(null);
