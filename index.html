@@ -701,13 +701,26 @@ function evWorld(e){const p=evPos(e);return s2w(p.px,p.py);}
 function hitHandle(l,w){if(!l||l.type!=='shape')return -1;const r=HR()*1.6;for(let i=l.pts.length-1;i>=0;i--)if(Math.hypot(l.pts[i].x-w.x,l.pts[i].y-w.y)<=r)return i;return -1;}
 const hitCtx=mk(2,2).getContext('2d');
 function inBox(l,w,y,rot){const b=l.type==='text'?textBox(l):imgBox(l),a=-(rot||0)*Math.PI/180,dx=w.x-l.x,dy=w.y-y;const lx=dx*Math.cos(a)-dy*Math.sin(a),ly=dx*Math.sin(a)+dy*Math.cos(a);return Math.abs(lx)<=b.w/2&&Math.abs(ly)<=b.h/2;}
+/* il pixel dell'immagine sotto il punto è visibile? (gli adesivi del template hanno riquadri enormi quasi tutti trasparenti) */
+function imgOpaqueAt(l,w){
+  const im=images[l.imgId];if(!im)return false;const a=-(l.rot||0)*Math.PI/180,dx=w.x-l.x,dy=w.y-l.y;
+  let lx=(dx*Math.cos(a)-dy*Math.sin(a))/(l.scale*(l.sx||1)),ly=(dx*Math.sin(a)+dy*Math.cos(a))/(l.scale*(l.sy||1));if(l.flipX)lx=-lx;if(l.flipY)ly=-ly;
+  const px=Math.floor(lx+im.w/2),py=Math.floor(ly+im.h/2);if(px<0||py<0||px>=im.w||py>=im.h)return false;
+  if(!im.hit){const c=im.img instanceof HTMLCanvasElement?im.img:(()=>{const c=mk(im.w,im.h);c.getContext('2d').drawImage(im.img,0,0);return c;})();im.hit=c.getContext('2d',{willReadFrequently:true});}
+  try{return im.hit.getImageData(px,py,1,1).data[3]>24;}catch(e){return true;}
+}
+function hitTest(l,w){
+  if(!vis(l)||l.guide)return false;
+  if(l.type==='shape'){const p=shapePath(l);return hitCtx.isPointInPath(p,w.x,w.y)||(l.mirror&&hitCtx.isPointInPath(p,w.x,mirrorY(w.y)));}
+  if(l.type==='fill'){const c=fillCache(l);return !!(c&&c.ids.has(labelAt(l.mode,w.x,w.y)));}
+  if(l.type==='text'||l.type==='image'){
+    const box=inBox(l,w,l.y,l.rot)||(l.mirror&&inBox(l,w,mirrorY(l.y),(l.rot||0)+(l.mirrorRot?180:0)));
+    return box&&(!l.fromTemplate||l.type!=='image'||imgOpaqueAt(l,w));}
+  return false;
+}
+/* prima i livelli tuoi, poi quelli del template: un adesivo bloccato non “ruba” più il clic ai tuoi loghi */
 function hitLayer(w){
-  for(let i=S.layers.length-1;i>=0;i--){
-    const l=S.layers[i];if(!vis(l))continue;
-    if(l.type==='shape'){const p=shapePath(l);if(hitCtx.isPointInPath(p,w.x,w.y)||(l.mirror&&hitCtx.isPointInPath(p,w.x,mirrorY(w.y))))return l;}
-    else if(l.type==='fill'){const c=fillCache(l);if(c&&c.ids.has(labelAt(l.mode,w.x,w.y)))return l;}
-    else if(l.type==='text'||l.type==='image'){if(inBox(l,w,l.y,l.rot)||(l.mirror&&inBox(l,w,mirrorY(l.y),(l.rot||0)+(l.mirrorRot?180:0))))return l;}
-  }
+  for(const mine of [true,false])for(let i=S.layers.length-1;i>=0;i--){const l=S.layers[i];if(!!l.fromTemplate===mine)continue;if(hitTest(l,w))return l;}
   return null;
 }
 function nearestSeg(l,w){let best=-1,bd=40/S.view.z;const n=l.pts.length;for(let i=0;i<n;i++){const a=l.pts[i],b=l.pts[(i+1)%n],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy||1,t=clamp(((w.x-a.x)*dx+(w.y-a.y)*dy)/len,0,1),d=Math.hypot(a.x+t*dx-w.x,a.y+t*dy-w.y);if(d<bd){bd=d;best=i;}}return best;}
@@ -728,7 +741,8 @@ view.addEventListener('pointerdown',e=>{
   {const hx=hitXform(cur,w);if(hx){const t=hx.H.t;drag={kind:hx.kind,id:cur.id,orig:JSON.stringify(cur),cx:t.cx,cy:t.cy,d0:Math.hypot(w.x-t.cx,w.y-t.cy)||1,a0:Math.atan2(w.y-t.cy,w.x-t.cx),rot:t.rot,hw:t.w/2||1,hh:t.h/2||1,moved:false};return;}}
   const hi=hitHandle(cur,w);
   if(hi>=0&&!cur.locked){drag={kind:'pt',idx:hi};return;}
-  const hit=hitLayer(w);
+  // clic dentro il livello già selezionato: lo sposto, anche se sopra c'è altro
+  const hit=(cur&&!cur.locked&&cur.type!=='fill'&&hitTest(cur,w))?cur:hitLayer(w);
   if(hit){S.sel=hit.id;refreshPanels();if(!hit.locked&&hit.type!=='fill')drag={kind:'move',start:w,orig:JSON.stringify(hit),id:hit.id,moved:false};}
   else{S.sel=null;refreshPanels();panning={px,py,vx:S.view.x,vy:S.view.y};}
   requestDraw();
@@ -739,7 +753,7 @@ view.addEventListener('pointermove',e=>{
   if(drawing&&drawing.lasso){const q=drawing.pts[drawing.pts.length-1];if(Math.hypot(q.x-w.x,q.y-w.y)>8/S.view.z)drawing.pts.push(w);requestDraw();return;}
   if(!drag){
     const cur=selLayer(),hx=S.tool==='select'?hitXform(cur,w):null;
-    view.style.cursor=spaceDown?'grab':hx?({rot:'grab',scale:'nwse-resize',sx:'ew-resize',sy:'ns-resize'})[hx.kind]:({free:'crosshair',lasso:'crosshair',rect:'crosshair',ellipse:'crosshair',island:'cell',panel:'cell',pick:'copy',text:'text',pan:'grab',brush:'none',eraser:'none'})[S.tool]||(cur&&hitHandle(cur,w)>=0?'pointer':'default');
+    view.style.cursor=spaceDown?'grab':hx?({rot:'grab',scale:'nwse-resize',sx:'ew-resize',sy:'ns-resize'})[hx.kind]:(S.tool==='select'&&(()=>{const h=(cur&&hitTest(cur,w))?cur:hitLayer(w);return h&&!h.locked&&h.type!=='fill';})()?'move':null)||({free:'crosshair',lasso:'crosshair',rect:'crosshair',ellipse:'crosshair',island:'cell',panel:'cell',pick:'copy',text:'text',pan:'grab',brush:'none',eraser:'none'})[S.tool]||(cur&&hitHandle(cur,w)>=0?'pointer':'default');
     requestDraw();return;
   }
   if(drag.kind==='create'){drag.b=w;}
@@ -1574,9 +1588,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.4';
+const APP_VERSION='1.4.1';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'1.4.1',d:'06/10/2026',items:['Corretto: i tuoi loghi, testi e forme si trascinano di nuovo con il mouse. Prima il clic finiva sugli adesivi del template (bloccati), che hanno riquadri grandi e quasi trasparenti.','Sopra un livello che puoi spostare il puntatore diventa la croce di spostamento.']},
  {v:'1.4',d:'06/10/2026',items:['Contorno di pezzi e pannelli: stile “Contorno” per Riempi pezzo/pannello, o “Contorno del pezzo” nelle proprietà, con colore, spessore e posizione (dentro, a cavallo, fuori).','Forme con contorno e forme vuote.','Loghi e testi: pallini sui lati per stirarli, rifletti orizzontale e verticale, posizione, dimensioni e rotazione con valori precisi.','Ritaglia sul livello sotto (maschera): righe, trame e loghi restano dentro il pannello o la forma.','Modi di fusione (moltiplica, scolora, sovrapponi…) e sfocatura dei bordi per ogni livello.','Regola immagine: luminosità, contrasto, saturazione e tonalità dei loghi.']},
  {v:'1.3',d:'06/10/2026',items:['Contagocce (K, o Alt+clic con qualunque strumento): prendi un colore dalla livrea.','Colori recenti nella barra in alto e nelle proprietà; in Libreria tutti i colori usati nella livrea.','Effetti dei loghi: ricolora in tinta unica, contorno e ombra.','Riempimenti specchiati: “Anche sull’altro fianco” colora il pezzo corrispondente.','Ricerca nella lista dei livelli e “Solo i miei” per nascondere quelli del template.','Anteprima come in gioco (G): senza linee, guide e selezione.','Novità e aggiornamenti dentro l’app: il numero di versione in alto apre questa finestra, e l’app si aggiorna da sola.']},
  {v:'1.2',d:'06/10/2026',items:['La base accetta trame e sfumature, non solo la tinta unita.','Colori in esadecimale accanto a ogni selettore.','Riempi pezzo/pannello: il livello selezionato si può sempre modificare; “Nuovo livello”, Esc o un cambio di colore ne creano uno nuovo.']},
