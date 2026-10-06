@@ -1,0 +1,15 @@
+{
+ "version": "1.3",
+ "date": "2026-10-06",
+ "notes": [
+  "Contagocce (K o Alt+clic) e colori recenti; in Libreria tutti i colori della livrea.",
+  "Effetti dei loghi: ricolora, contorno e ombra.",
+  "Riempimenti specchiati sull'altro fianco.",
+  "Ricerca nei livelli, «Solo i miei» e anteprima come in gioco (G).",
+  "Novità e aggiornamenti automatici dentro l'app."
+ ],
+ "app": {
+  "file": "index.html",
+  "sha256": "6316a1540a9ce67496193983e4d04bf9eb6118b8e0ac5bd16823f90a3a336042"
+ }
+}
