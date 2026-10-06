@@ -1,14 +1,12 @@
 {
- "version": "1.4",
+ "version": "1.4.1",
  "date": "2026-10-06",
  "notes": [
-  "Contorno di pezzi e pannelli (dentro, a cavallo o fuori dal bordo) e forme con contorno.",
-  "Loghi e testi: stira in larghezza o altezza, rifletti, valori precisi di posizione, dimensioni e rotazione.",
-  "Ritaglia sul livello sotto, modi di fusione e sfocatura dei bordi.",
-  "Regola immagine: luminosità, contrasto, saturazione e tonalità."
+  "Corretto: loghi, testi e forme si trascinano di nuovo con il mouse (prima il clic finiva sugli adesivi del template).",
+  "Puntatore di spostamento sopra i livelli che puoi muovere."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "4dc77f44f2b0043f0b32df20fa39d978a63e9f7d7594f00b5ec588827b247a35"
+  "sha256": "70436212accadcbccbb722906e2c791e29e0d927d2930e16be06b0c7cdb47af1"
  }
 }
