@@ -104,6 +104,9 @@ button{cursor:pointer}
 .pt{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);background:none;border:0;padding:0}
 .pt canvas{width:100%;aspect-ratio:1;border-radius:8px;border:1px solid var(--line)}
 .pt[aria-pressed="true"] canvas{outline:2px solid var(--accent)}
+.hex{width:76px;flex:0 0 76px!important;font:500 12.5px ui-monospace,Menlo,Consolas,monospace!important;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+.opts .hex{padding:3px 6px}
+.tgt{font-size:12.5px;color:var(--muted)}.tgt b{color:var(--ink);font-weight:600}
 .layer .chip.chk-bg{background-color:#fff;background-image:none;background-size:contain;background-repeat:no-repeat;background-position:center}
 .layer.guide .nm{font-style:italic}
 .layer.base{background:none;border-style:dashed}
@@ -238,7 +241,7 @@ const S={
   layers:[], sel:null, base:'#F4F5F0', axis:2048, tool:'select', uid:1,
   wire:{on:true,op:0.85}, view:{z:0.2,x:0,y:0}, mode:'livery',
   act:{color:'#C0202B', pat:'none', bg:'#1B1D20', scale:1, angle:0, c2:'#006B3C', c3:'#C9A24B', gangle:0}, brush:40, eraser:60,
-  tplName:null, groups:{}, baseMat:'keep',
+  tplName:null, groups:{}, baseMat:'keep', basePaint:{pat:'none',bg:'#1B1D20',scale:1,angle:0},
 };
 const images={};          // id -> {img (canvas|img), w, h, url, name}
 let wireCv=null, wireDark=true, regionCv=null, regionNP=null;
@@ -252,10 +255,10 @@ function setStatus(s){$('#status').textContent=s;}
 function busy(msg){const b=$('#busy');if(msg){b.textContent=msg;b.hidden=false;}else b.hidden=true;}
 function newId(){return 'L'+(S.uid++);}
 const getLayer=id=>S.layers.find(l=>l.id===id), selLayer=()=>getLayer(S.sel);
-function snapshot(){return JSON.stringify({layers:S.layers,base:S.base,baseMat:S.baseMat,groups:S.groups,axis:S.axis,uid:S.uid,sel:S.sel});}
+function snapshot(){return JSON.stringify({layers:S.layers,base:S.base,baseMat:S.baseMat,basePaint:S.basePaint,groups:S.groups,axis:S.axis,uid:S.uid,sel:S.sel});}
 function commit(){hist=hist.slice(0,histPos+1);hist.push(snapshot());if(hist.length>80)hist.shift();histPos=hist.length-1;dirty=true;updateUndo();afterChange();}
 function afterChange(){if(typeof scheduleSave==='function')scheduleSave();if(typeof scheduleGame==='function')scheduleGame();}
-function restore(js){const o=JSON.parse(js);S.layers=o.layers;S.base=o.base;S.baseMat=o.baseMat||'keep';S.groups=o.groups||{};S.axis=o.axis;S.uid=Math.max(S.uid,o.uid);S.sel=getLayer(o.sel)?o.sel:null;refreshAll();}
+function restore(js){const o=JSON.parse(js);S.layers=o.layers;S.base=o.base;S.baseMat=o.baseMat||'keep';S.basePaint=o.basePaint||{pat:'none',bg:'#1B1D20',scale:1,angle:0};S.groups=o.groups||{};S.axis=o.axis;S.uid=Math.max(S.uid,o.uid);S.sel=getLayer(o.sel)?o.sel:null;refreshAll();}
 function undo(){if(histPos>0){histPos--;restore(hist[histPos]);updateUndo();afterChange();}}
 function redo(){if(histPos<hist.length-1){histPos++;restore(hist[histPos]);updateUndo();afterChange();}}
 function updateUndo(){$('#bUndo').disabled=histPos<=0;$('#bRedo').disabled=histPos>=hist.length-1;}
@@ -483,7 +486,7 @@ function drawLayer(ctx,l,tint,hard){
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(t,0,0);ctx.restore();
 }
 // forView: le guide del template (maschera, posizione dei display) si vedono solo nell'editor, mai nei file esportati
-function drawScene(ctx,forView){ctx.save();ctx.fillStyle=S.base;ctx.fillRect(0,0,N,N);for(const l of S.layers)if(forView||!l.guide)drawLayer(ctx,l);ctx.restore();}
+function drawScene(ctx,forView){ctx.save();ctx.fillStyle=paintStyle(ctx,S.basePaint,S.base,0,0,{x0:0,y0:0,x1:N,y1:N});ctx.fillRect(0,0,N,N);for(const l of S.layers)if(forView||!l.guide)drawLayer(ctx,l);ctx.restore();}
 /* mappa dei materiali del template senza le zone nere (vernice): serve quando la base ha un materiale suo */
 function regionNoPaint(){
   if(regionNP||!regionCv)return regionNP;
@@ -587,13 +590,14 @@ function finishLasso(){
 function doFill(mode,w){
   if(!LAB){toast('Prima apri il template: servono le linee del wireframe per riconoscere i pezzi.');return;}
   const v=labelAt(mode,w.x,w.y);if(!v){toast('Qui non c’è un pezzo. Clicca dentro una parte della carrozzeria.');return;}
-  const cur=selLayer(),same=cur&&cur.type==='fill'&&cur.mode===mode&&cur.color===S.act.color&&JSON.stringify(cur.paint)===JSON.stringify(actPaint());
+  // se è selezionato un livello di riempimento dello stesso tipo, i clic aggiungono/tolgono da quello (qualunque sia il colore attivo)
+  const cur=selLayer(),same=cur&&cur.type==='fill'&&cur.mode===mode&&!cur.locked;
   if(same){
     const c=fillCache(cur);
     if(c&&c.ids.has(v)){cur.seeds=cur.seeds.filter(p=>labelAt(mode,p.x,p.y)!==v);}else cur.seeds.push({x:w.x,y:w.y});
     commit();refreshAll();return;
   }
-  addLayer({type:'fill',name:(mode==='island'?'Pezzo ':'Pannello ')+S.uid,mode,seeds:[{x:w.x,y:w.y}],color:S.act.color,paint:actPaint(),grow:3});
+  addLayer({type:'fill',name:(mode==='island'?'Pezzo ':'Pannello ')+S.uid,mode,seeds:[{x:w.x,y:w.y}],color:S.act.color,paint:actPaint(),grow:3});buildOpts();
 }
 function paintTarget(){let l=selLayer();if(l&&l.type==='paint')return l;l=addLayer({type:'paint',name:'Pennello '+S.uid,strokes:[]},true,false);refreshPanels();return l;}
 
@@ -689,7 +693,7 @@ window.addEventListener('keydown',e=>{
   if(typing)return;
   if(e.code==='Space'){spaceDown=true;view.style.cursor='grab';e.preventDefault();return;}
   if(e.key==='Enter'&&drawing){finishDrawing();return;}
-  if(e.key==='Escape'){drawing=null;drag=null;setTool('select');return;}
+  if(e.key==='Escape'){drawing=null;drag=null;if((S.tool==='island'||S.tool==='panel')&&S.sel){S.sel=null;refreshPanels();buildOpts();requestDraw();return;}setTool('select');return;}
   if(e.key.startsWith('Arrow')&&S.sel&&tg!=='input'){const l=selLayer();if(!l||l.locked||l.type==='fill'){if(l&&l.locked)toast('Il livello è bloccato.');return;}e.preventDefault();
     const st=e.shiftKey?10:1,dx=e.key==='ArrowLeft'?-st:e.key==='ArrowRight'?st:0,dy=e.key==='ArrowUp'?-st:e.key==='ArrowDown'?st:0;
     if(l.type==='shape')l.pts.forEach(p=>{p.x+=dx;p.y+=dy;});else if(l.type==='paint')l.strokes.forEach(s=>{s.pts=s.pts.map((v,k)=>v+(k%2?dy:dx));});else{l.x+=dx;l.y+=dy;}
@@ -727,8 +731,8 @@ function setTool(t){S.tool=t;if(t!=='free'&&!(drawing&&drawing.lasso))drawing=nu
 let showHints=true;try{showHints=localStorage.getItem('liverylab-hints')!=='0';}catch(e){}
 function setHint(){
   const H={select:'Clic per selezionare. Gli angoli del riquadro ridimensionano, il pallino in alto ruota (Maiusc per scatti di 15°). Trascina i punti di una forma per modellarla: doppio clic su un punto lo rende angolo netto, doppio clic sul bordo aggiunge un punto, clic destro lo toglie. Frecce: sposta di 1 px (Maiusc 10 px). Ctrl+D duplica.',
-    island:LAB?'Clic su un pezzo per colorarlo tutto. Con lo stesso colore, altri clic aggiungono pezzi allo stesso livello; un clic su un pezzo già colorato lo toglie.':'Apri prima il template PSD: i pezzi si ricavano dal wireframe.',
-    panel:LAB?'Clic su un pannello: il colore segue le linee verdi del template. Stesso colore, stesso livello.':'Apri prima il template PSD: i pannelli si ricavano dal wireframe.',
+    island:LAB?'Clic su un pezzo per colorarlo tutto. Finché il livello è selezionato, altri clic aggiungono pezzi; un clic su un pezzo già colorato lo toglie. Cambiando colore, o con “Nuovo livello” (Esc), il prossimo clic crea un livello nuovo.':'Apri prima il template PSD: i pezzi si ricavano dal wireframe.',
+    panel:LAB?'Clic su un pannello: il colore segue le linee verdi del template. Finché il livello è selezionato, altri clic aggiungono o tolgono pannelli. Cambiando colore, o con “Nuovo livello” (Esc), il prossimo clic crea un livello nuovo.':'Apri prima il template PSD: i pannelli si ricavano dal wireframe.',
     free:drawing&&drawing.pts.length?'Altri clic per i punti (Maiusc per un angolo). Doppio clic, Invio o clic sul primo punto per chiudere.':'Clic per il primo punto della lama.',
     lasso:'Tieni premuto e disegna il contorno: al rilascio diventa una forma che puoi rifinire.',
     brush:'Dipingi a mano libera. Ogni sessione di pennello va nel livello pennello selezionato.',
@@ -739,10 +743,16 @@ function setHint(){
 function buildOpts(){
   const o=$('#opts');o.innerHTML='';const t=S.tool;
   const col=el('input',{type:'color',class:'cbtn',value:S.act.color,'aria-label':'Colore attivo'});col.addEventListener('input',()=>{S.act.color=col.value;});
-  const mini=el('div',{class:'mini'},...PAL.slice(0,8).map(c=>el('button',{style:`background:${c}`,title:c,'aria-label':'Colore '+c,onclick:()=>{S.act.color=c;col.value=c;}})));
-  if(t==='select'||t==='pan'){o.append(el('label',{},'Colore attivo'),col,mini);return;}
+  // cambiare colore con un riempimento selezionato vuol dire “nuovo colore”: il prossimo clic crea un livello nuovo
+  const newColor=()=>{const c=selLayer();if((t==='island'||t==='panel')&&c&&c.type==='fill'){S.sel=null;refreshPanels();requestDraw();buildOpts();}};
+  col.addEventListener('change',newColor);
+  const hx=hexField(()=>S.act.color,v=>{S.act.color=v.toLowerCase();newColor();},col);
+  const mini=el('div',{class:'mini'},...PAL.slice(0,8).map(c=>el('button',{style:`background:${c}`,title:c,'aria-label':'Colore '+c,onclick:()=>{S.act.color=c;col.value=c.toLowerCase();hx.value=c;newColor();}})));
+  if(t==='select'||t==='pan'){o.append(el('label',{},'Colore attivo'),col,hx,mini);return;}
   if(t==='eraser'){const r=el('input',{type:'range',min:4,max:400,value:S.eraser});r.oninput=()=>{S.eraser=+r.value;};o.append(el('label',{},'Dimensione gomma'),r);return;}
-  o.append(el('label',{},'Colore'),col,mini);
+  o.append(el('label',{},'Colore'),col,hx,mini);
+  if(t==='island'||t==='panel'){const cur=selLayer(),mode=t==='island'?'island':'panel';
+    if(cur&&cur.type==='fill'&&cur.mode===mode)o.append(el('span',{class:'tgt',title:'I clic aggiungono o tolgono '+(mode==='island'?'pezzi':'pannelli')+' da questo livello'},'Su: ',el('b',{},cur.name)),el('button',{class:'btn sm',onclick:()=>{S.sel=null;refreshPanels();buildOpts();requestDraw();}},'Nuovo livello'));}
   if(t==='brush'){const r=el('input',{type:'range',min:2,max:400,value:S.brush});r.oninput=()=>{S.brush=+r.value;};o.append(el('label',{},'Dimensione'),r);return;}
   if(t==='text')return;
   const ps=el('select',{'aria-label':'Trama'});PATS.forEach(([k,n])=>ps.append(el('option',{value:k,selected:k===S.act.pat},n)));ps.onchange=()=>{S.act.pat=ps.value;buildOpts();};
@@ -842,7 +852,7 @@ async function importPSD(buf,fname){
   if(psd.W!==N||psd.H!==N)toast(`Il template è ${psd.W}×${psd.H}: l’editor lavora a 4096, lo adatto.`,4000);
   busy('Preparo livelli, adesivi e materiali…');await tick();
   // nuova sessione
-  S.layers=[];S.sel=null;S.groups={};S.baseMat='keep';for(const k in images)delete images[k];regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
+  S.layers=[];S.sel=null;S.groups={};S.baseMat='keep';S.basePaint={pat:'none',bg:'#1B1D20',scale:1,angle:0};for(const k in images)delete images[k];regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
   let uvw=null,regCount=0,imp=0,baseFound=false,over=false;const rc=mk(N,N),rx=rc.getContext('2d');rx.fillStyle='#000';rx.fillRect(0,0,N,N);
   const hex=c=>'#'+c.map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
   for(const l of psd.layers){
@@ -1003,7 +1013,7 @@ function layerRow(l){
   return el('li',{class:'layer'+(l.id===S.sel?' sel':'')+(vis(l)?'':' off')+(l.guide?' guide':'')},
     el('button',{class:'ib eye',title:l.visible?'Nascondi':'Mostra','aria-label':(l.visible?'Nascondi ':'Mostra ')+l.name,onclick:()=>{l.visible=!l.visible;commit();refreshAll();}},l.visible?'●':'○'),
     chip(l),
-    el('span',{class:'nm',title:`${l.name} (${l.guide?'guida, non viene esportata':TYPEN[l.type]})`,onclick:()=>{S.sel=l.id;if(S.tool!=='select'&&S.tool!=='eraser'&&S.tool!=='brush')setTool('select');refreshPanels();requestDraw();}},l.name),
+    el('span',{class:'nm',title:`${l.name} (${l.guide?'guida, non viene esportata':TYPEN[l.type]})`,onclick:()=>{S.sel=l.id;if(!['select','eraser','brush'].includes(S.tool)&&!(l.type==='fill'&&(S.tool==='island'||S.tool==='panel')))setTool('select');refreshPanels();buildOpts();requestDraw();}},l.name),
     l.guide?el('span',{class:'tag',title:'Guida del template: si vede solo qui, non finisce nei file'},'guida'):null,
     l.locked?el('span',{class:'note',style:'margin:0',title:'Bloccato'},'🔒'):null,
     l.mat&&l.mat!=='keep'?el('span',{class:'chip',title:'Materiale: '+MATS.find(m=>m[0]===l.mat)[1],style:`background:${MATCOL[l.mat]}`}):null,
@@ -1052,13 +1062,23 @@ function buildLayers(){
 }
 function ctl(label,input,val){return el('div',{class:'row'},el('label',{},label),input,val||null);}
 function rangeCtl(label,get,set,min,max,step,fmt=v=>v){const out=el('span',{class:'val'},fmt(get())),inp=el('input',{type:'range',min,max,step,value:get(),'aria-label':label});inp.addEventListener('input',()=>{set(+inp.value);out.textContent=fmt(+inp.value);requestDraw();});inp.addEventListener('change',()=>commit());return ctl(label,inp,out);}
-function colorCtl(label,get,set){const inp=el('input',{type:'color',value:get(),'aria-label':label});inp.addEventListener('input',()=>{set(inp.value);requestDraw();});inp.addEventListener('change',()=>{commit();buildLayers();});return ctl(label,inp);}
+/* campo esadecimale accanto ai selettori di colore: accetta #RGB, RGB, #RRGGBB, RRGGBB */
+function parseHex(v){v=String(v).trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(v))v=v.split('').map(c=>c+c).join('');return /^[0-9a-f]{6}$/i.test(v)?'#'+v.toUpperCase():null;}
+function hexField(get,apply,picker){
+  const h=el('input',{type:'text',class:'hex',value:get().toUpperCase(),maxlength:7,spellcheck:'false','aria-label':'Colore in esadecimale'});
+  h.addEventListener('change',()=>{const v=parseHex(h.value);if(!v){h.value=get().toUpperCase();toast('Scrivi un colore come #C0202B');return;}h.value=v;if(picker)picker.value=v.toLowerCase();apply(v);});
+  h.addEventListener('keydown',e=>{if(e.key==='Enter')h.blur();});
+  if(picker)picker.addEventListener('input',()=>{h.value=picker.value.toUpperCase();});
+  return h;
+}
+function colorCtl(label,get,set){const inp=el('input',{type:'color',value:get(),'aria-label':label});inp.addEventListener('input',()=>{set(inp.value);requestDraw();});inp.addEventListener('change',()=>{commit();buildLayers();});
+  return ctl(label,inp,hexField(get,v=>{set(v.toLowerCase());commit();refreshAll();},inp));}
 function checkCtl(label,get,set){const inp=el('input',{type:'checkbox'});inp.checked=!!get();inp.addEventListener('change',()=>{set(inp.checked);commit();refreshAll();});return el('label',{class:'chk'},inp,label);}
 function selectCtl(label,opts,get,set){const s=el('select',{'aria-label':label});opts.forEach(([k,n])=>s.append(el('option',{value:k,selected:k===get()},n)));s.addEventListener('change',()=>{set(s.value);commit();refreshAll();});return ctl(label,s);}
 function swatchRow(apply){return el('div',{class:'swatches'},...PAL.map(c=>el('button',{class:'sw',style:`background:${c}`,title:c,'aria-label':'Colore '+c,onclick:()=>apply(c)})));}
-function paintSec(l){
+function paintSec(l,title='Colore e trama'){
   l.paint=l.paint||{pat:'none',bg:'#1B1D20',scale:1,angle:0};const P=l.paint;
-  return el('div',{class:'sec'},el('h3',{},'Colore e trama'),swatchRow(c=>{l.color=c;commit();refreshAll();}),
+  return el('div',{class:'sec'},el('h3',{},title),swatchRow(c=>{l.color=c;commit();refreshAll();}),
     colorCtl('Colore',()=>l.color,v=>{l.color=v;}),
     selectCtl('Trama',PATS,()=>P.pat,v=>{P.pat=v;}),
     isGrad(P)?colorCtl('Colore finale',()=>P.c2||'#006B3C',v=>{P.c2=v;}):null,
@@ -1093,7 +1113,8 @@ function buildProps(){
     const c=fillCache(l),n=c?c.ids.size:0;
     p.append(paintSec(l));
     p.append(el('div',{class:'sec'},el('h3',{},l.mode==='island'?'Pezzi colorati':'Pannelli colorati'),
-      el('p',{class:'note'},`${n} ${l.mode==='island'?(n===1?'pezzo':'pezzi'):(n===1?'pannello':'pannelli')} in questo livello. Con lo strumento attivo e lo stesso colore, clicca per aggiungerne o toglierne.`),
+      el('p',{class:'note'},`${n} ${l.mode==='island'?(n===1?'pezzo':'pezzi'):(n===1?'pannello':'pannelli')} in questo livello. Con il livello selezionato e lo strumento attivo, clicca per aggiungerne o toglierne.`),
+      el('button',{class:'btn sm',onclick:()=>setTool(l.mode==='island'?'island':'panel')},l.mode==='island'?'Aggiungi o togli pezzi':'Aggiungi o togli pannelli'),
       rangeCtl('Abbondanza',()=>l.grow??3,v=>{l.grow=v;},0,12,1,v=>v+' px'),
       el('p',{class:'note'},'Allarga un po’ il colore oltre i bordi, così in gioco non restano fessure sulle giunture.')));
   }
@@ -1122,12 +1143,12 @@ function buildProps(){
 }
 function buildDoc(){
   const p=$('#paneD');p.innerHTML='';
-  const base=el('input',{type:'color',value:S.base,'aria-label':'Colore base'});base.addEventListener('input',()=>{S.base=base.value;requestDraw();});base.addEventListener('change',()=>commit());
   const ax=el('input',{type:'number',value:S.axis,step:.5,min:0,max:N,'aria-label':'Asse di specchio'});ax.addEventListener('change',()=>{S.axis=clamp(+ax.value||0,0,N);commit();requestDraw();});
   const bmat=el('select',{'aria-label':'Materiale della base'});MATS.forEach(([k,n])=>bmat.append(el('option',{value:k,selected:k===(S.baseMat||'keep')},k==='keep'?'Come nel template':n)));
   bmat.addEventListener('change',()=>{S.baseMat=bmat.value;commit();refreshAll();if(S.baseMat!=='keep'&&S.mode!=='regions')toast('Guarda il risultato con la vista “Materiali”. I dettagli che devono restare vernice: Materiale → Vernice.',5000);});
-  p.append(el('div',{class:'sec'},el('h3',{},'Base'),swatchRow(c=>{S.base=c;commit();refreshAll();}),ctl('Colore base',base),ctl('Materiale',bmat),
-    el('p',{class:'note'},'Il colore riempie tutta la tela sotto i tuoi livelli. Il materiale vale per tutta la carrozzeria verniciata: le parti in carbonio e gli adesivi del template restano come sono. Per i dettagli che devono tornare vernice normale (region nero), scegli Materiale → Vernice nelle loro proprietà.')));
+  const B={get color(){return S.base;},set color(v){S.base=v;},get paint(){return S.basePaint;},set paint(v){S.basePaint=v;}};
+  const bs=paintSec(B,'Base');bs.append(ctl('Materiale',bmat),
+    el('p',{class:'note'},'Il colore riempie tutta la tela sotto i tuoi livelli. Il materiale vale per tutta la carrozzeria verniciata: le parti in carbonio e gli adesivi del template restano come sono. Per i dettagli che devono tornare vernice normale (region nero), scegli Materiale → Vernice nelle loro proprietà.'));p.append(bs);
   p.append(el('div',{class:'sec'},el('h3',{},'Linee del template'),checkCtl('Mostra le linee',()=>S.wire.on,v=>{S.wire.on=v;$('#bWire').setAttribute('aria-pressed',String(v));}),
     rangeCtl('Intensità',()=>Math.round(S.wire.op*100),v=>{S.wire.op=v/100;},10,100,1,v=>v+'%'),el('p',{class:'note'},'Le linee servono solo come guida e non vengono esportate.')));
   p.append(el('div',{class:'sec'},el('h3',{},'Asse di specchio'),ctl('Posizione y',ax),el('p',{class:'note'},'Le forme con “Duplica sull’altro lato” si riflettono rispetto a questa riga orizzontale. Nel template della Genesis i due fianchi sono sopra e sotto la metà della tela: parti da 2048 e correggi guardando la linea arancione.')));
