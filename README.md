@@ -17,6 +17,9 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Specchio sull'altro fianco**, con colore invertito, e **filetto** lungo i bordi.
 - **Materiali:** anche la base ha un materiale (per esempio tutta la carrozzeria in cromo o wrap); ogni livello può diventare vernice, carbonio, cromo, wrap o adesivi, così i dettagli possono tornare vernice (region nero).
 - **Libreria personale** di loghi e **palette estratta da una foto**.
+- **Contagocce** (K, o Alt+clic), **colori recenti**, **colori della livrea** in Libreria e codici **hex** accanto a ogni colore.
+- **Effetti dei loghi:** ricolora in tinta unica, contorno e ombra.
+- **Ricerca nei livelli**, “Solo i miei” e **anteprima come in gioco** (G).
 - **Salvataggio automatico** nel browser e progetti salvabili in JSON.
 - **Export per LMU:** `customskin.tga` e `customskin_region.tga` (TGA 32 bit non compressi, 4096 × 4096).
 
@@ -33,6 +36,12 @@ Con Chrome o Edge puoi collegare la cartella di gioco (`steamapps/common/Le Mans
 Per vedere la livrea sull'auto: in LMU vai nello showroom ("Apply to a New Car") e premi **RELOAD** dopo ogni export.
 
 Con altri browser l'editor funziona lo stesso, ma esporta uno zip con i due file da copiare a mano.
+
+## Aggiornamenti
+
+Il numero di versione in alto apre **Novità e aggiornamenti**. L'app controlla a ogni avvio e ogni ora il file `version.json` di questo repository: se c'è una versione nuova, il pulsante diventa **Aggiorna**. Aperta come file in Chrome o Edge, sostituisce `index.html` con un clic (la prima volta chiede quale file); dalla versione pubblicata basta ricaricare. Il lavoro resta salvato nel browser.
+
+Per pubblicare una versione: aggiorna `APP_VERSION` e `CHANGELOG` in `index.html`, poi `sh release.sh <versione> "nota" …` riscrive `version.json` con lo SHA-256 di `index.html`. I due file vanno committati insieme.
 
 ## Cosa non c'è nel repository
 
