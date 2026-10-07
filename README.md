@@ -23,6 +23,9 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Contorno di pezzi e pannelli** (dentro, a cavallo o fuori dal bordo) e forme con contorno o vuote.
 - **Trasforma** loghi e testi: sposta, ruota, ingrandisci, stira in larghezza o altezza, rifletti; valori precisi nelle proprietà.
 - **Strumenti alla GIMP, semplificati:** ritaglia sul livello sotto (maschera), modi di fusione, sfocatura dei bordi, luminosità/contrasto/saturazione/tonalità dei loghi.
+- **Concept pronti** (bicolore, carbonio e colore, contorni, mimetico, schegge, esagoni, camaleonte, cromo…) con i tuoi tre colori, e **28 trame**, anche da una tua immagine.
+- **Selezione multipla** (Maiusc+clic, Ctrl+A), **calamita**, allinea e distribuisci, **gruppi** tuoi, **stili** salvati.
+- **Ctrl+V** per incollare immagini e testi, **i tuoi font**, **testo curvo**.
 - **Salvataggio automatico** nel browser e progetti salvabili in JSON.
 - **Export per LMU:** `customskin.tga` e `customskin_region.tga` (TGA 32 bit non compressi, 4096 × 4096).
 

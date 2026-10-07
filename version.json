@@ -1,12 +1,14 @@
 {
- "version": "1.4.1",
- "date": "2026-10-06",
+ "version": "1.5",
+ "date": "2026-10-07",
  "notes": [
-  "Corretto: loghi, testi e forme si trascinano di nuovo con il mouse (prima il clic finiva sugli adesivi del template).",
-  "Puntatore di spostamento sopra i livelli che puoi muovere."
+  "16 concept pronti e 14 trame nuove, anche da una tua immagine.",
+  "Selezione multipla, calamita, allinea e distribuisci, gruppi tuoi.",
+  "Ctrl+V per incollare, i tuoi font, testo curvo, stili salvati.",
+  "Riempi pannello senza frammenti minuscoli; menu File."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "70436212accadcbccbb722906e2c791e29e0d927d2930e16be06b0c7cdb47af1"
+  "sha256": "7f837a2888fecb255af4a787410e955ad48215b532351e90ce29b66088dc05cf"
  }
 }
