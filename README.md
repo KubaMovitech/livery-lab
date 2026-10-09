@@ -26,6 +26,7 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Concept pronti** (bicolore, carbonio e colore, contorni, mimetico, schegge, esagoni, camaleonte, cromo…) con i tuoi tre colori, e **28 trame**, anche da una tua immagine.
 - **Selezione multipla** (Maiusc+clic, Ctrl+A), **calamita**, allinea e distribuisci, **gruppi** tuoi, **stili** salvati.
 - **Ctrl+V** per incollare immagini e testi, **i tuoi font**, **testo curvo**.
+- **Rifai una livrea già fatta:** carica il suo `customskin.tga` come **immagine di riferimento** (si ricalca, non si esporta) ed **Estrai colore** (X) trasforma ogni colore in un livello da ricolorare.
 - **Salvataggio automatico** nel browser e progetti salvabili in JSON.
 - **Export per LMU:** `customskin.tga` e `customskin_region.tga` (TGA 32 bit non compressi, 4096 × 4096).
 

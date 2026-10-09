@@ -632,8 +632,16 @@ function drawStack(ctx,keep,tintOf,hard){
       ctx.save();ctx.setTransform(1,0,0,1,0,0);if(!tn&&c.blend&&c.blend!=='source-over')ctx.globalCompositeOperation=c.blend;ctx.drawImage(t,0,0);ctx.restore();}
   }
 }
+/* immagine di riferimento (es. il TGA di una livrea già fatta): si vede solo nell'editor, mai nei file.
+   REF.src = immagine originale; REF.cv = la stessa già posizionata sulla tela 4096 (serve a ricalco, contagocce ed estrazione) */
+const REF={src:null,cv:null,data:null,on:true,op:.6,above:true,dx:0,dy:0,sc:1,blob:null,name:''};
+function refBake(){if(!REF.src){REF.cv=REF.data=null;return;}const c=REF.cv&&REF.cv.width===N?REF.cv:mk(N,N),x=c.getContext('2d',{willReadFrequently:true});x.clearRect(0,0,N,N);
+  x.drawImage(REF.src,REF.dx,REF.dy,N*REF.sc,N*REF.sc);REF.cv=c;REF.data=x.getImageData(0,0,N,N).data;}
+const refShown=()=>REF.cv&&REF.on&&!S.preview;
+function drawRef(ctx){ctx.save();ctx.globalAlpha=REF.op;ctx.drawImage(REF.cv,0,0);ctx.restore();}
 // forView: le guide del template (maschera, posizione dei display) si vedono solo nell'editor, mai nei file esportati
-function drawScene(ctx,forView){ctx.save();ctx.fillStyle=paintStyle(ctx,S.basePaint,S.base,0,0,{x0:0,y0:0,x1:N,y1:N});ctx.fillRect(0,0,N,N);drawStack(ctx,l=>forView||!l.guide,()=>null);ctx.restore();}
+function drawScene(ctx,forView){ctx.save();ctx.fillStyle=paintStyle(ctx,S.basePaint,S.base,0,0,{x0:0,y0:0,x1:N,y1:N});ctx.fillRect(0,0,N,N);
+  if(forView&&refShown()&&!REF.above)drawRef(ctx);drawStack(ctx,l=>forView||!l.guide,()=>null);ctx.restore();}
 /* mappa dei materiali del template senza le zone nere (vernice): serve quando la base ha un materiale suo */
 function regionNoPaint(){
   if(regionNP||!regionCv)return regionNP;
@@ -665,6 +673,7 @@ function render(){
   c.setTransform(dpr*z,0,0,dpr*z,dpr*S.view.x,dpr*S.view.y);
   c.save();c.beginPath();c.rect(0,0,N,N);c.clip();
   if(S.mode==='regions')drawRegions(c);else drawScene(c,!S.preview);
+  if(S.mode!=='regions'&&refShown()&&REF.above)drawRef(c);
   if(wireCv&&S.wire.on&&!S.preview){c.save();c.globalAlpha=S.wire.op;c.globalCompositeOperation=wireDark?'difference':'multiply';c.drawImage(wireView(),0,0,N,N);c.restore();}
   c.restore();
   c.save();c.strokeStyle='rgba(120,120,120,.9)';c.lineWidth=1.5/z;c.strokeRect(0,0,N,N);
@@ -753,7 +762,34 @@ function doFill(mode,w){
     edge:{on:eo,only:eo,color:S.act.color,width:S.act.ew||10,pos:'inside'}});buildOpts();
 }
 function sampleAt(w){const c=tmp('pick',1,1),x=c.getContext('2d');x.setTransform(1,0,0,1,-Math.floor(w.x),-Math.floor(w.y));drawScene(x);const d=x.getImageData(0,0,1,1).data;return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');}
-function pickColor(w){if(w.x<0||w.y<0||w.x>=N||w.y>=N)return;const c=sampleAt(w);S.act.color=c;pushRecent(c);buildOpts();toast('Colore preso: '+c.toUpperCase());}
+function refColorAt(w){const i=((Math.floor(w.y)<<12)+Math.floor(w.x))*4,d=REF.data;if(!d||d[i+3]<16)return null;return '#'+[d[i],d[i+1],d[i+2]].map(v=>v.toString(16).padStart(2,'0')).join('');}
+function pickColor(w){if(w.x<0||w.y<0||w.x>=N||w.y>=N)return;const rc=refShown()?refColorAt(w):null;if(rc){S.act.color=rc;pushRecent(rc);buildOpts();toast('Colore preso dal riferimento: '+rc.toUpperCase());return;}const c=sampleAt(w);S.act.color=c;pushRecent(c);buildOpts();toast('Colore preso: '+c.toUpperCase());}
+/* “Estrai colore”: tutti i pixel del riferimento con quel colore (o solo la zona collegata) diventano un livello
+   che si ricolora con “Ricolora in tinta unica”. Bordi morbidi, così non resta la scalettatura. */
+async function extractColor(w){
+  if(!REF.data){toast('Carica prima la livrea di riferimento (Documento → Immagine di riferimento).',5000);return;}
+  const ix=Math.floor(w.x),iy=Math.floor(w.y);if(ix<0||iy<0||ix>=N||iy>=N)return;
+  const d=REF.data,i0=((iy<<12)+ix)*4;if(d[i0+3]<16){toast('Qui il riferimento è vuoto.');return;}
+  busy('Estraggo il colore…');await tick();
+  const r0=d[i0],g0=d[i0+1],b0=d[i0+2],tol=S.act.tol??30,fe=Math.max(6,tol*.35),lim=tol+fe,A=new Uint8ClampedArray(NN);
+  const dist=q=>Math.max(Math.abs(d[q]-r0),Math.abs(d[q+1]-g0),Math.abs(d[q+2]-b0));
+  const al=dd=>dd<=tol?255:dd>=lim?0:Math.round(255*(lim-dd)/fe);
+  let x0=N,y0=N,x1=-1,y1=-1;const mark=(p)=>{const x=p&4095,y=p>>12;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;};
+  if(S.act.contig){const Q=new Int32Array(NN),seen=new Uint8Array(NN);let h=0,t=0;Q[t++]=(iy<<12)+ix;seen[Q[0]]=1;
+    while(h<t){const p=Q[h++],q=p*4;if(d[q+3]<16)continue;const dd=dist(q);if(dd>=lim)continue;A[p]=al(dd)*d[q+3]/255;mark(p);if(dd>tol)continue;const x=p&4095;
+      for(const n of [x>0?p-1:-1,x<N-1?p+1:-1,p-N,p+N])if(n>=0&&n<NN&&!seen[n]){seen[n]=1;Q[t++]=n;}}}
+  else for(let p=0,q=0;p<NN;p++,q+=4){if(d[q+3]<16)continue;const dd=dist(q);if(dd<lim){A[p]=al(dd)*d[q+3]/255;if(A[p])mark(p);}}
+  if(x1<0){busy(null);toast('Nessun pixel di quel colore.');return;}
+  const w_=x1-x0+1,h_=y1-y0+1,c=mk(w_,h_),cx=c.getContext('2d'),id=cx.createImageData(w_,h_),o=id.data;let n=0;
+  for(let y=0;y<h_;y++){let p=((y+y0)<<12)+x0,q=y*w_*4;for(let x=0;x<w_;x++,p++,q+=4){const a=A[p];if(a){o[q]=r0;o[q+1]=g0;o[q+2]=b0;o[q+3]=a;n++;}}}
+  cx.putImageData(id,0,0);
+  const hex='#'+[r0,g0,b0].map(v=>v.toString(16).padStart(2,'0')).join(''),imgId='I'+(S.uid++);
+  images[imgId]={img:c,w:w_,h:h_,url:null,name:'Colore '+hex.toUpperCase()};
+  addLayer({type:'image',name:'Colore '+hex.toUpperCase(),imgId,x:x0+w_/2,y:y0+h_/2,scale:1,rot:0,mirror:false,mirrorRot:true,locked:true,
+    fx:{tint:{on:true,color:hex},outline:{on:false,color:'#FFFFFF',width:6},shadow:{on:false,color:'#000000',alpha:.6,blur:12,dx:8,dy:8}}});
+  busy(null);setTab('P');
+  toast(`Livello “Colore ${hex.toUpperCase()}” creato (${Math.round(n/1000)}k pixel): cambia il colore in “Ricolora in tinta unica”. È bloccato al suo posto; sbloccalo per spostarlo.`,6000);
+}
 function paintTarget(){let l=selLayer();if(l&&l.type==='paint')return l;l=addLayer({type:'paint',name:'Pennello '+S.uid,strokes:[]},true,false);refreshPanels();return l;}
 
 /* ================= input ================= */
@@ -821,6 +857,7 @@ view.addEventListener('pointerdown',e=>{
   if(e.button===1||e.button===2||spaceDown||S.tool==='pan'){panning={px,py,vx:S.view.x,vy:S.view.y};view.style.cursor='grabbing';return;}
   const t=S.tool;
   if(t==='pick'||(e.altKey&&t!=='pan')){pickColor(w);return;}
+  if(t==='wand'){extractColor(w);return;}
   if(t==='free'){if(!drawing)drawing={pts:[]};const f=drawing.pts[0];if(f&&drawing.pts.length>=3&&Math.hypot(f.x-w.x,f.y-w.y)<=HR()*1.8){finishDrawing();return;}drawing.pts.push({x:w.x,y:w.y,c:e.shiftKey});requestDraw();setHint();return;}
   if(t==='lasso'){drawing={lasso:true,pts:[w]};return;}
   if(t==='rect'||t==='ellipse'){drag={kind:'create',a:w,b:w};return;}
@@ -847,7 +884,7 @@ view.addEventListener('pointermove',e=>{
   if(drawing&&drawing.lasso){const q=drawing.pts[drawing.pts.length-1];if(Math.hypot(q.x-w.x,q.y-w.y)>8/S.view.z)drawing.pts.push(w);requestDraw();return;}
   if(!drag){
     const cur=selLayer(),hx=S.tool==='select'?hitXform(cur,w):null;
-    view.style.cursor=spaceDown?'grab':hx?({rot:'grab',scale:'nwse-resize',sx:'ew-resize',sy:'ns-resize'})[hx.kind]:(S.tool==='select'&&(()=>{const h=(cur&&hitTest(cur,w))?cur:hitLayer(w);return h&&!h.locked&&h.type!=='fill';})()?'move':null)||({free:'crosshair',lasso:'crosshair',rect:'crosshair',ellipse:'crosshair',island:'cell',panel:'cell',pick:'copy',text:'text',pan:'grab',brush:'none',eraser:'none'})[S.tool]||(cur&&hitHandle(cur,w)>=0?'pointer':'default');
+    view.style.cursor=spaceDown?'grab':hx?({rot:'grab',scale:'nwse-resize',sx:'ew-resize',sy:'ns-resize'})[hx.kind]:(S.tool==='select'&&(()=>{const h=(cur&&hitTest(cur,w))?cur:hitLayer(w);return h&&!h.locked&&h.type!=='fill';})()?'move':null)||({free:'crosshair',lasso:'crosshair',rect:'crosshair',ellipse:'crosshair',island:'cell',panel:'cell',pick:'copy',wand:'crosshair',text:'text',pan:'grab',brush:'none',eraser:'none'})[S.tool]||(cur&&hitHandle(cur,w)>=0?'pointer':'default');
     requestDraw();return;
   }
   if(drag.kind==='create'){drag.b=w;}
@@ -919,6 +956,7 @@ window.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;view.st
 
 /* ================= strumenti ================= */
 const ICONS={
+  wand:'<path d="M4 20l10-10"/><path d="M15 3v3M18.5 4.5l-2 2M21 9h-3M18.5 13.5l-2-2"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor"/>',
   pick:'<path d="M14.5 4.5l5 5"/><path d="M17 7l2.2-2.2a1.6 1.6 0 00-2.3-2.3L14.7 4.8"/><path d="M15.8 8.2L7 17l-3 1 1-3 8.8-8.8"/>',
   select:'<path d="M5 3l6 16 2.5-6.5L20 10z"/>',
   island:'<path d="M4 15c0-5 4-9 9-9 4 0 7 2 7 5s-3 4-5 4-3 3-6 3-5-1-5-3z" fill="currentColor" stroke="none" opacity=".35"/><path d="M4 15c0-5 4-9 9-9 4 0 7 2 7 5s-3 4-5 4-3 3-6 3-5-1-5-3z"/>',
@@ -933,7 +971,7 @@ const ICONS={
   image:'<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M5 17l5-4 3 2 3-3 4 4"/>',
   pan:'<path d="M8 12V6a1.5 1.5 0 013 0v5m0-1V4.5a1.5 1.5 0 013 0V10m0-1.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-3l-2-3a1.5 1.5 0 012.5-1.6L8 15"/>'
 };
-const TOOLS=[['select','Seleziona e sposta','v'],null,['island','Riempi un pezzo intero','f'],['panel','Riempi un pannello','m'],null,['free','Lama: forma a punti','p'],['lasso','Lazo: disegna una forma a mano','q'],['brush','Pennello','b'],['eraser','Gomma (sul livello selezionato)','e'],null,['rect','Rettangolo','r'],['ellipse','Ellisse','o'],['text','Testo','t'],['image','Importa immagine o logo','i'],['pick','Contagocce: prendi un colore dalla livrea (o Alt+clic)','k'],null,['pan','Sposta la vista (o tieni Spazio)','h']];
+const TOOLS=[['select','Seleziona e sposta','v'],null,['island','Riempi un pezzo intero','f'],['panel','Riempi un pannello','m'],null,['free','Lama: forma a punti','p'],['lasso','Lazo: disegna una forma a mano','q'],['brush','Pennello','b'],['eraser','Gomma (sul livello selezionato)','e'],null,['rect','Rettangolo','r'],['ellipse','Ellisse','o'],['text','Testo','t'],['image','Importa immagine o logo','i'],['pick','Contagocce: prendi un colore dalla livrea (o Alt+clic)','k'],['wand','Estrai colore dal riferimento: diventa un livello ricolorabile','x'],null,['pan','Sposta la vista (o tieni Spazio)','h']];
 function buildTools(){
   const box=$('#tools');box.innerHTML='';
   for(const t of TOOLS){if(!t){box.append(el('div',{class:'tsep'}));continue;}
@@ -950,6 +988,7 @@ function setHint(){
     lasso:'Tieni premuto e disegna il contorno: al rilascio diventa una forma che puoi rifinire.',
     brush:'Dipingi a mano libera. Ogni sessione di pennello va nel livello pennello selezionato.',
     eraser:'Cancella dal livello selezionato. Le parti cancellate si possono ripristinare dalle proprietà.',
+    wand:REF.cv?'Clic su un colore del riferimento: tutte le parti di quel colore diventano un livello separato, da ricolorare. Tolleranza alta = prende anche le sfumature vicine.':'Carica prima una livrea finita come riferimento (Documento → Immagine di riferimento).',
     pick:'Clic sulla livrea per prendere quel colore come colore attivo. Con qualunque strumento puoi anche fare Alt+clic.',
     rect:'Trascina per disegnare un rettangolo.',ellipse:'Trascina per disegnare un’ellisse.',text:'Clic sulla tela per aggiungere un testo.',pan:'Trascina per spostare la vista.'};
   $('#hint').textContent=H[S.tool]||'';$('#hint').hidden=!showHints||!H[S.tool];
@@ -964,6 +1003,9 @@ function buildOpts(){
   const rc=recent.filter(c=>!PAL.slice(0,8).map(x=>x.toLowerCase()).includes(c)).slice(0,6);
   const mini=el('div',{class:'mini'},...PAL.slice(0,8).concat(rc.length?['|']:[],rc).map(c=>c==='|'?el('span',{class:'msep',title:'Recenti'}):el('button',{style:`background:${c}`,title:c.toUpperCase(),'aria-label':'Colore '+c,onclick:()=>{S.act.color=c.toLowerCase();col.value=c.toLowerCase();hx.value=c.toUpperCase();newColor();}})));
   if(t==='select'||t==='pan'){o.append(el('label',{},'Colore attivo'),col,hx,mini);return;}
+  if(t==='wand'){const r=el('input',{type:'range',min:2,max:120,value:S.act.tol??30,'aria-label':'Tolleranza'}),v=el('span',{class:'tgt'},String(S.act.tol??30));r.oninput=()=>{S.act.tol=+r.value;v.textContent=r.value;};
+    const cg=el('input',{type:'checkbox'});cg.checked=!!S.act.contig;cg.onchange=()=>{S.act.contig=cg.checked;};
+    o.append(el('label',{},'Tolleranza'),r,v,el('label',{class:'chk',style:'margin:0'},cg,'Solo la zona collegata'));if(!REF.cv)o.append(el('button',{class:'btn sm',onclick:()=>refPick()},'Carica riferimento'));return;}
   if(t==='eraser'){const r=el('input',{type:'range',min:4,max:400,value:S.eraser});r.oninput=()=>{S.eraser=+r.value;};o.append(el('label',{},'Dimensione gomma'),r);return;}
   o.append(el('label',{},'Colore'),col,hx,mini);
   if(t==='island'||t==='panel'){const cur=selLayer(),mode=t==='island'?'island':'panel';
@@ -1135,7 +1177,9 @@ $('#fTpl').addEventListener('change',async()=>{
   st.addEventListener('dragover',e=>{if(dz)e.preventDefault();});
   st.addEventListener('dragleave',()=>{if(--depth<=0&&dz){dz.remove();dz=null;depth=0;}});
   st.addEventListener('drop',async e=>{if(!dz)return;e.preventDefault();dz.remove();dz=null;depth=0;
-    const fs=[...e.dataTransfer.files];const tpl=fs.find(f=>/\.(psd|tga)$/i.test(f.name));
+    const fs=[...e.dataTransfer.files];
+    if(wireCv&&fs.length===1&&/\.tga$/i.test(fs[0].name)){await loadRef(fs[0]);return;}
+    const tpl=fs.find(f=>/\.(psd|tga)$/i.test(f.name));
     try{
       if(tpl){if(S.layers.some(l=>!l.fromTemplate)&&!confirm('Aprire un nuovo template sostituisce il lavoro attuale. Continuo?'))return;
         if(/\.psd$/i.test(tpl.name))await importPSD(await tpl.arrayBuffer(),tpl.name);else await importGuideImage(tpl);return;}
@@ -1157,6 +1201,22 @@ window.addEventListener('paste',async e=>{
   for(const it of items){const f=it.getAsFile();if(!f)continue;await addImageBlob(f,'Incollato '+S.uid);if(lib)libAdd(new File([f],'Incollato '+Date.now()+'.png',{type:f.type}));}
   toast('Immagine incollata: trascinala dove vuoi.');
 });
+/* riferimento: PNG, JPG o TGA (anche il customskin.tga di una livrea già fatta) */
+function refPick(){const i=el('input',{type:'file',accept:'image/*,.tga'});i.onchange=()=>{if(i.files[0])loadRef(i.files[0]);};i.click();}
+async function loadRef(file,cfg){
+  try{busy('Carico il riferimento…');await tick();
+    let url,blob=file;if(/\.tga$/i.test(file.name||'')&&!/^image\/(png|jpeg|webp)/.test(file.type||'')){url=await tgaToURL(await file.arrayBuffer());blob=urlToBlob(url);}else url=await blobToURL(file);
+    const img=await loadImg(url);REF.src=img;REF.blob=blob;REF.name=file.name||'riferimento';Object.assign(REF,{on:true,op:.6,above:true,dx:0,dy:0,sc:1},cfg||{});
+    if(!cfg&&(img.naturalWidth!==img.naturalHeight))toast('Il riferimento non è quadrato: regola scala e posizione in Documento finché combacia con il template.',6000);
+    refBake();busy(null);refreshAll();setHint();buildOpts();if(!cfg){setTab('D');toast('Riferimento caricato. Usa “Estrai colore” (X) per trasformare i suoi colori in livelli, o ricalcalo con lame e forme.',6000);scheduleSave();}
+  }catch(e){busy(null);toast('Non riesco a leggere questo file: '+e.message,5000);}
+}
+function refAsLayer(){
+  if(!REF.cv)return;const id='I'+(S.uid++);images[id]={img:REF.cv,w:N,h:N,url:null,name:REF.name};
+  const l={id:newId(),type:'image',name:'Riferimento · '+REF.name,imgId:id,x:N/2,y:N/2,scale:1,rot:0,mirror:false,mirrorRot:true,visible:true,opacity:1,mat:'keep',locked:true};
+  const fi=S.layers.findIndex(x=>!x.fromTemplate),ti=S.layers.findIndex(x=>x.onTop),at=fi>=0?fi:ti>=0?ti:S.layers.length;S.layers.splice(at,0,l);
+  REF.on=false;S.sel=l.id;commit();refreshAll();toast('Livrea messa come livello in fondo ai tuoi: ci lavori sopra coprendo e sostituendo sponsor e colori.',6000);
+}
 /* immagini utente */
 $('#fImg').addEventListener('change',async()=>{const fs=[...$('#fImg').files];$('#fImg').value='';for(const f of fs){await addImageBlob(f,f.name.replace(/\.[^.]+$/,''));if(lib)libAdd(f);}});
 async function addImageBlob(blob,name){
@@ -1603,6 +1663,16 @@ function buildDoc(){
   const B={get color(){return S.base;},set color(v){S.base=v;},get paint(){return S.basePaint;},set paint(v){S.basePaint=v;}};
   const bs=paintSec(B,'Base');bs.append(ctl('Materiale',bmat),
     el('p',{class:'note'},'Il colore riempie tutta la tela sotto i tuoi livelli. Il materiale vale per tutta la carrozzeria verniciata: le parti in carbonio e gli adesivi del template restano come sono. Per i dettagli che devono tornare vernice normale (region nero), scegli Materiale → Vernice nelle loro proprietà.'));p.append(bs);
+  {const sec=el('div',{class:'sec'},el('h3',{},'Immagine di riferimento'));
+    if(!REF.cv)sec.append(el('p',{class:'note'},'Carica una livrea già fatta (anche il suo customskin.tga) o uno screenshot: la vedi semitrasparente sulla tela per ricalcarla, il contagocce prende i suoi colori ed “Estrai colore” (X) trasforma ogni colore in un livello da ricolorare. Non viene esportata.'),el('button',{class:'btn sm',onclick:refPick},'Carica riferimento'));
+    else{const rb=()=>{refBake();requestDraw();};
+      sec.append(el('p',{class:'note'},REF.name),checkCtl('Mostra il riferimento',()=>REF.on,v=>{REF.on=v;}),
+        rangeCtl('Opacità',()=>Math.round(REF.op*100),v=>{REF.op=v/100;},5,100,1,v=>v+'%'),
+        checkCtl('Sopra ai livelli (togli per vederlo sotto)',()=>REF.above,v=>{REF.above=v;}),
+        el('div',{class:'numgrid'},numCtl('Sposta X',()=>REF.dx,v=>{REF.dx=v;rb();}),numCtl('Sposta Y',()=>REF.dy,v=>{REF.dy=v;rb();}),numCtl('Scala %',()=>REF.sc*100,v=>{REF.sc=Math.max(1,v)/100;rb();},.1)),
+        el('div',{class:'row',style:'flex-wrap:wrap'},el('button',{class:'btn sm pri',onclick:()=>setTool('wand')},'Estrai colore (X)'),el('button',{class:'btn sm',onclick:refAsLayer},'Metti come livello'),
+          el('button',{class:'btn sm',onclick:refPick},'Cambia'),el('button',{class:'btn sm',onclick:()=>{REF.src=null;REF.blob=null;refBake();refreshAll();setHint();scheduleSave();}},'Togli')));}
+    p.append(sec);}
   p.append(el('div',{class:'sec'},el('h3',{},'Linee del template'),checkCtl('Mostra le linee',()=>S.wire.on,v=>{S.wire.on=v;$('#bWire').setAttribute('aria-pressed',String(v));}),
     rangeCtl('Intensità',()=>Math.round(S.wire.op*100),v=>{S.wire.op=v/100;},10,100,1,v=>v+'%'),el('p',{class:'note'},'Le linee servono solo come guida e non vengono esportate.')));
   p.append(el('div',{class:'sec'},el('h3',{},'Asse di specchio'),ctl('Posizione y',ax),el('p',{class:'note'},'Le forme con “Duplica sull’altro lato” si riflettono rispetto a questa riga orizzontale. Nel template della Genesis i due fianchi sono sopra e sotto la metà della tela: parti da 2048 e correggi guardando la linea arancione.')));
@@ -1667,7 +1737,8 @@ function imgURL(im){if(im.url)return im.url;if(im.img instanceof HTMLCanvasEleme
 $('#bSave').onclick=async()=>{
   busy('Preparo il progetto…');await tick();
   const imgs={};for(const id in images){const im=images[id];if(!usesImg(id))continue;imgs[id]={url:imgURL(im),name:im.name};}
-  const proj={app:'liverylab',v:2,state:JSON.parse(snapshot()),images:imgs,wire:wireCv?canvasURL(wireCv):null,wireDark,region:regionCv?canvasURL(regionCv):null,tpl:S.tplName};
+  const proj={app:'liverylab',v:2,state:JSON.parse(snapshot()),images:imgs,wire:wireCv?canvasURL(wireCv):null,wireDark,region:regionCv?canvasURL(regionCv):null,tpl:S.tplName,
+    ref:REF.src&&REF.blob?{url:await blobToURL(REF.blob),name:REF.name,cfg:{on:REF.on,op:REF.op,above:REF.above,dx:REF.dx,dy:REF.dy,sc:REF.sc}}:null};
   busy(null);await saveFile('livrea_progetto.json',JSON.stringify(proj));dirty=false;
 };
 $('#bOpen').onclick=()=>$('#fProj').click();
@@ -1680,6 +1751,7 @@ $('#fProj').addEventListener('change',async()=>{
     regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
     if(o.region){const i=await loadImg(o.region),c=mk(N,N);c.getContext('2d').drawImage(i,0,0,N,N);regionCv=c;}
     if(o.wire){const i=await loadImg(o.wire),c=mk(N,N),x=c.getContext('2d');x.drawImage(i,0,0,N,N);wireCv=c;wireDark=o.wireDark!==false;await analyze(x.getImageData(0,0,N,N).data);}
+    if(o.ref&&o.ref.url){const b=urlToBlob(o.ref.url);await loadRef(new File([b],o.ref.name||'riferimento.png',{type:b.type}),o.ref.cfg||{});}
     S.tplName=o.tpl||null;restore(JSON.stringify(o.state));hist=[];histPos=-1;commit();dirty=false;fit();busy(null);toast('Progetto aperto.');
   }catch(e){busy(null);toast('File non valido: '+e.message,5000);}
 });
@@ -1812,7 +1884,8 @@ async function autosave(){
       imgs[id]={blob:im.blob,name:im.name};}
     if(wireCv&&!wireBlob)wireBlob=await canvasBlob(wireCv);
     if(regionCv&&!regionBlob)regionBlob=await canvasBlob(regionCv);
-    const rec={when:Date.now(),tpl:S.tplName,state:snapshot(),images:imgs,wire:wireCv?wireBlob:null,wireDark,region:regionCv?regionBlob:null};
+    const rec={when:Date.now(),tpl:S.tplName,state:snapshot(),images:imgs,wire:wireCv?wireBlob:null,wireDark,region:regionCv?regionBlob:null,
+      ref:REF.src&&REF.blob?{blob:REF.blob,name:REF.name,cfg:{on:REF.on,op:REF.op,above:REF.above,dx:REF.dx,dy:REF.dy,sc:REF.sc}}:null};
     await new Promise((res,rej)=>{const t=d.transaction('autosave','readwrite');t.objectStore('autosave').put(rec,'last');t.oncomplete=res;t.onerror=()=>rej(t.error);});
     $('#saved').textContent=`Salvato nel browser alle ${hhmm()}`;
   }catch(e){$('#saved').textContent='Salvataggio automatico non riuscito';}
@@ -1827,6 +1900,7 @@ async function resumeAutosave(rec){
     regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=rec.wire||null;regionBlob=rec.region||null;
     if(rec.region){const i=await loadImg(await blobToURL(rec.region)),c=mk(N,N);c.getContext('2d').drawImage(i,0,0,N,N);regionCv=c;}
     if(rec.wire){const i=await loadImg(await blobToURL(rec.wire)),c=mk(N,N),x=c.getContext('2d');x.drawImage(i,0,0,N,N);wireCv=c;wireDark=rec.wireDark!==false;await analyze(x.getImageData(0,0,N,N).data);}
+    if(rec.ref&&rec.ref.blob){const f=new File([rec.ref.blob],rec.ref.name||'riferimento.png',{type:rec.ref.blob.type||'image/png'});await loadRef(f,rec.ref.cfg||{});}
     S.tplName=rec.tpl||null;restore(rec.state);hist=[];histPos=-1;hist.push(snapshot());histPos=0;updateUndo();dirty=false;fit();busy(null);
     $('#resumeBox').hidden=true;if(FS_OK)loadOutDir();
     if(S.tplName)$('#docinfo').textContent=S.tplName;
@@ -1843,9 +1917,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.5';
+const APP_VERSION='1.6';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'1.6',d:'09/10/2026',items:['Immagine di riferimento (Documento): carica una livrea già fatta, anche il suo customskin.tga, e la vedi semitrasparente sulla tela per ricalcarla. Non viene esportata.','Estrai colore (X): clic su un colore del riferimento e tutte le parti di quel colore diventano un livello separato da ricolorare. Tolleranza regolabile e “solo la zona collegata”.','Il contagocce prende i colori dal riferimento quando è visibile.','“Metti come livello”: la livrea finita diventa il fondo su cui coprire e sostituire sponsor.']},
  {v:'1.5',d:'07/10/2026',items:['Concept pronti in Libreria: 16 idee complete (bicolore, carbonio e colore, contorni, mimetico, schegge, esagoni, tigrato, camaleonte, cromo…) con i tuoi tre colori.','14 trame nuove: gessato, griglia, zigzag, onde, triangoli, schegge, mimetico digitale, tigrato, squame, rombi, glitter, metallo spazzolato, linee di velocità e trama da una tua immagine.','Selezione multipla con Maiusc+clic (o Ctrl+A): sposta, duplica ed elimina insieme; allinea e distribuisci; raggruppa in cartelle tue.','Calamita: mentre trascini, i livelli si agganciano al centro, all’asse e agli altri livelli (Ctrl per sganciare).','Incolla con Ctrl+V immagini e testi copiati.','I tuoi font (.ttf, .otf, .woff) in Libreria.','Testo curvo, ad arco o a sorriso.','Stili: salva l’aspetto di un livello e riapplicalo con un clic, più alcuni stili pronti.','Riempi pannello: niente più frammenti minuscoli (Cadillac da oltre 14.000 a circa 300 pannelli).','Menu File in alto: la barra non va più a capo.']},
  {v:'1.4.1',d:'06/10/2026',items:['Corretto: i tuoi loghi, testi e forme si trascinano di nuovo con il mouse. Prima il clic finiva sugli adesivi del template (bloccati), che hanno riquadri grandi e quasi trasparenti.','Sopra un livello che puoi spostare il puntatore diventa la croce di spostamento.']},
  {v:'1.4',d:'06/10/2026',items:['Contorno di pezzi e pannelli: stile “Contorno” per Riempi pezzo/pannello, o “Contorno del pezzo” nelle proprietà, con colore, spessore e posizione (dentro, a cavallo, fuori).','Forme con contorno e forme vuote.','Loghi e testi: pallini sui lati per stirarli, rifletti orizzontale e verticale, posizione, dimensioni e rotazione con valori precisi.','Ritaglia sul livello sotto (maschera): righe, trame e loghi restano dentro il pannello o la forma.','Modi di fusione (moltiplica, scolora, sovrapponi…) e sfocatura dei bordi per ogni livello.','Regola immagine: luminosità, contrasto, saturazione e tonalità dei loghi.']},
@@ -1910,7 +1985,7 @@ setTimeout(()=>updCheck(true),3000);setInterval(()=>updCheck(true),3600000);
 new ResizeObserver(resizeView).observe(view);
 FONTS.slice(0,4).forEach(ensureFont);
 buildTools();buildOpts();setHint();resizeView();fit();commit();dirty=false;refreshPanels();buildLib();libLoad().then(offerResume);
-window.__LL={APP_VERSION,hitLayer,hitTest,selIds,updCheck,pickColor,xformHandles,autosave,readAutosave,resumeAutosave,autoExport,exportToGame,openGameTemplates,S,images,get LAB(){return LAB;},fillCache,drawScene,drawRegions,labelAt,readPSD};
+window.__LL={APP_VERSION,REF,loadRef,extractColor,hitLayer,hitTest,selIds,updCheck,pickColor,xformHandles,autosave,readAutosave,resumeAutosave,autoExport,exportToGame,openGameTemplates,S,images,get LAB(){return LAB;},fillCache,drawScene,drawRegions,labelAt,readPSD};
 })();
 </script>
 </body>
