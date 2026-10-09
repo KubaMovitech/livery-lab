@@ -1,13 +1,11 @@
 {
- "version": "1.7",
+ "version": "1.7.1",
  "date": "2026-10-09",
  "notes": [
-  "Estrai dal riferimento solo quello che scegli: colore nel pezzo, pezzo intero, area a mano o rettangolo.",
-  "«Togli lo sfondo» per ritagliare uno sponsor come logo trasparente.",
-  "Il contorno può avere un materiale suo (pezzi, forme, testi)."
+  "Materiale del contorno anche per loghi e livelli estratti dal riferimento (Effetti del logo → Contorno)."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "66bf08008d54f25367644d9f9c14b8ddc0dbe3cf0d7a73d524188293c38679bf"
+  "sha256": "bf6ea2eb9f82689de8d8addba20ff459a580afe2e9e82e48ae0209dac14a0eb7"
  }
 }

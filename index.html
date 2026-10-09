@@ -301,7 +301,7 @@ const MATCOL=Object.fromEntries(MATS.map(m=>[m[0],m[2]]));
    quando il contorno ha un materiale suo (l.outMat) */
 let PART=null;
 const OUTMATS=[['same','Come il livello'],...MATS.filter(m=>m[0]!=='keep').map(m=>[m[0],m[1]]),['keep','Nessuno (non cambia)']];
-function hasOutline(l){return (l.type==='fill'&&l.edge&&l.edge.on&&l.edge.width>0)||(l.type==='shape'&&((l.stroke&&l.stroke.on&&l.stroke.width>0)||(l.pin&&l.pin.on)))||(l.type==='text'&&l.outline&&l.outline.on&&l.outline.width>0);}
+function hasOutline(l){return (l.type==='fill'&&l.edge&&l.edge.on&&l.edge.width>0)||(l.type==='shape'&&((l.stroke&&l.stroke.on&&l.stroke.width>0)||(l.pin&&l.pin.on)))||(l.type==='text'&&l.outline&&l.outline.on&&l.outline.width>0)||(l.type==='image'&&l.fx&&l.fx.outline&&l.fx.outline.on&&l.fx.outline.width>0);}
 const sepOutline=l=>!!(l.outMat&&l.outMat!=='same'&&hasOutline(l));
 function outMatCtl(l){return selectCtl('Materiale del contorno',OUTMATS,()=>l.outMat||'same',v=>{l.outMat=v;});}
 const PATS=[['none','Tinta unita'],['grad','Sfumatura a 2 colori'],['grad3','Camaleonte a 3 colori'],['carbon','Carbonio'],['stripes','Righe'],['hex','Esagoni'],['dots','Mezzitoni'],['chevron','Chevron'],['checker','Scacchi'],['camo','Mimetico'],
@@ -547,17 +547,22 @@ function imgFx(l,im){
   const f=l.fx;if(!f||!((f.tint&&f.tint.on)||(f.outline&&f.outline.on&&f.outline.width>0)))return null;
   const key=JSON.stringify([l.imgId,f.tint,f.outline,l.scale]),c=FXC[l.id];if(c&&c.key===key)return c;
   const r=f.outline&&f.outline.on?Math.min(400,f.outline.width/Math.max(l.scale,.01)):0,pad=Math.ceil(r)+1;
-  const out=mk(im.w+2*pad,im.h+2*pad),x=out.getContext('2d');
-  if(r>0){const sil=silhouette(im,f.outline.color);for(const k of [1,.7,.4])for(let a=0;a<32;a++){const t=a/32*Math.PI*2;x.drawImage(sil,pad+Math.cos(t)*r*k,pad+Math.sin(t)*r*k);}}
-  x.drawImage(f.tint&&f.tint.on?silhouette(im,f.tint.color):im.img,pad,pad,im.w,im.h);
-  return FXC[l.id]={key,cv:out,pad};
+  const W=im.w+2*pad,H=im.h+2*pad,out=mk(W,H),x=out.getContext('2d'),body=f.tint&&f.tint.on?silhouette(im,f.tint.color):im.img;
+  // corpo e contorno anche separati: nella mappa dei materiali il contorno può avere un materiale suo
+  let cb=out,ce=null;
+  if(r>0){const sil=silhouette(im,f.outline.color);ce=mk(W,H);const ex=ce.getContext('2d');for(const k of [1,.7,.4])for(let a=0;a<32;a++){const t=a/32*Math.PI*2;ex.drawImage(sil,pad+Math.cos(t)*r*k,pad+Math.sin(t)*r*k);}
+    ex.globalCompositeOperation='destination-out';ex.drawImage(im.img,pad,pad,im.w,im.h);ex.globalCompositeOperation='source-over';
+    cb=mk(W,H);cb.getContext('2d').drawImage(body,pad,pad,im.w,im.h);x.drawImage(ce,0,0);}
+  x.drawImage(body,pad,pad,im.w,im.h);
+  return FXC[l.id]={key,cv:out,cb,ce,pad};
 }
 function drawImg(ctx,l,alpha){
   const im=images[l.imgId];if(!im)return;const w=im.w*l.scale*(l.sx||1),h=im.h*l.scale*(l.sy||1),fx=imgFx(l,im),pd=fx?fx.pad*l.scale*(l.sx||1):0,pe=fx?fx.pad*l.scale*(l.sy||1):0,sh=l.fx&&l.fx.shadow&&l.fx.shadow.on;
   ctx.save();ctx.globalAlpha=alpha;ctx.translate(l.x,l.y);ctx.rotate((l.rot||0)*Math.PI/180);
   if(sh){const m=ctx.getTransform(),k=Math.hypot(m.a,m.b),S_=l.fx.shadow;ctx.shadowColor=hexA(S_.color,S_.alpha??.6);ctx.shadowBlur=(S_.blur||0)*k;ctx.shadowOffsetX=(S_.dx||0)*k;ctx.shadowOffsetY=(S_.dy||0)*k;}
   if(l.flipX||l.flipY)ctx.scale(l.flipX?-1:1,l.flipY?-1:1);
-  ctx.drawImage(fx?fx.cv:im.img,-w/2-pd,-h/2-pe,w+2*pd,h+2*pe);ctx.restore();
+  const src=fx?(PART==='edge'?fx.ce:PART==='body'?fx.cb:fx.cv):(PART==='edge'?null:im.img);
+  if(src)ctx.drawImage(src,-w/2-pd,-h/2-pe,w+2*pd,h+2*pe);ctx.restore();
 }
 function textBox(l){const c=tmp('m',4,4).getContext('2d');c.font=`${l.italic?'italic ':''}${l.bold?'700 ':'400 '}${l.size}px "${l.font}", sans-serif`;if('letterSpacing' in c)c.letterSpacing=(l.spacing||0)+'px';let w=0;const ls=String(l.text).split('\n');for(const t of ls)w=Math.max(w,c.measureText(t).width);const ow=l.outline&&l.outline.on?l.outline.width*2:0;let bw=Math.max(w,l.size*.6)+ow,bh=ls.length*l.size*1.15+ow;
   if(l.arc){const a=Math.abs(l.arc)*Math.PI/180,R0=w/a;if(a<Math.PI){bw=2*R0*Math.sin(a/2)+l.size+ow;}else bw=2*R0+l.size+ow;bh+=R0*(1-Math.cos(Math.min(a,Math.PI)/2))*2;}
@@ -602,7 +607,7 @@ function fillCache(l){
 function drawBody(ctx,l,alpha){
   if(l.type==='shape'){drawShapeOnce(ctx,l,l.color,false,alpha);if(l.mirror)drawShapeOnce(ctx,l,l.mirrorSwap?l.color2:l.color,true,alpha);}
   else if(l.type==='text'){drawText(ctx,l,alpha);if(l.mirror)drawText(ctx,Object.assign({},l,{y:mirrorY(l.y),rot:(l.rot||0)+(l.mirrorRot?180:0)}),alpha);}
-  else if(l.type==='image'){if(PART==='edge')return;drawImg(ctx,l,alpha);if(l.mirror)drawImg(ctx,Object.assign({},l,{y:mirrorY(l.y),rot:(l.rot||0)+(l.mirrorRot?180:0)}),alpha);}
+  else if(l.type==='image'){drawImg(ctx,l,alpha);if(l.mirror)drawImg(ctx,Object.assign({},l,{y:mirrorY(l.y),rot:(l.rot||0)+(l.mirrorRot?180:0)}),alpha);}
   else if(l.type==='fill'){const c=fillCache(l),cv=c&&(PART==='edge'?c.ce:PART==='body'?c.cb:c.cv);if(cv){ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(cv,c.x,c.y);ctx.restore();}}
   else if(l.type==='paint'){if(PART==='edge')return;ctx.save();ctx.globalAlpha=alpha;
     if(alpha<1){/* opacità uniforme sui tratti sovrapposti */const cv=ctx.canvas,t=tmp('pa',cv.width,cv.height),tc=t.getContext('2d');tc.setTransform(ctx.getTransform());for(const s of l.strokes)strokePath(tc,s,s.color);ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(t,0,0);}
@@ -1696,6 +1701,7 @@ function buildProps(){
       checkCtl('Contorno',()=>F.outline.on,v=>{F.outline.on=v;}),
       F.outline.on?colorCtl('Colore contorno',()=>F.outline.color,v=>{F.outline.color=v;}):null,
       F.outline.on?rangeCtl('Spessore',()=>F.outline.width,v=>{F.outline.width=v;},1,60,1,v=>v+' px'):null,
+      F.outline.on?outMatCtl(l):null,
       checkCtl('Ombra',()=>F.shadow.on,v=>{F.shadow.on=v;}),
       F.shadow.on?colorCtl('Colore ombra',()=>F.shadow.color,v=>{F.shadow.color=v;}):null,
       F.shadow.on?rangeCtl('Intensità',()=>Math.round((F.shadow.alpha??.6)*100),v=>{F.shadow.alpha=v/100;},5,100,1,v=>v+'%'):null,
@@ -1967,9 +1973,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.7';
+const APP_VERSION='1.7.1';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'1.7.1',d:'09/10/2026',items:['Materiale del contorno anche per loghi e livelli estratti dal riferimento (Effetti del logo → Contorno).']},
  {v:'1.7',d:'09/10/2026',items:['Estrai dal riferimento solo quello che scegli: il colore solo nel pezzo cliccato, un pezzo o pannello intero con i suoi loghi, un’area disegnata a mano o un rettangolo.','“Togli lo sfondo”: ritagli uno sponsor dalla livrea e diventa un logo trasparente da spostare.','Il contorno ha un materiale suo: contorno dei pezzi, contorno e filetto delle forme, contorno dei testi (per esempio forma in vernice e bordo in cromo).']},
  {v:'1.6',d:'09/10/2026',items:['Immagine di riferimento (Documento): carica una livrea già fatta, anche il suo customskin.tga, e la vedi semitrasparente sulla tela per ricalcarla. Non viene esportata.','Estrai colore (X): clic su un colore del riferimento e tutte le parti di quel colore diventano un livello separato da ricolorare. Tolleranza regolabile e “solo la zona collegata”.','Il contagocce prende i colori dal riferimento quando è visibile.','“Metti come livello”: la livrea finita diventa il fondo su cui coprire e sostituire sponsor.']},
  {v:'1.5',d:'07/10/2026',items:['Concept pronti in Libreria: 16 idee complete (bicolore, carbonio e colore, contorni, mimetico, schegge, esagoni, tigrato, camaleonte, cromo…) con i tuoi tre colori.','14 trame nuove: gessato, griglia, zigzag, onde, triangoli, schegge, mimetico digitale, tigrato, squame, rombi, glitter, metallo spazzolato, linee di velocità e trama da una tua immagine.','Selezione multipla con Maiusc+clic (o Ctrl+A): sposta, duplica ed elimina insieme; allinea e distribuisci; raggruppa in cartelle tue.','Calamita: mentre trascini, i livelli si agganciano al centro, all’asse e agli altri livelli (Ctrl per sganciare).','Incolla con Ctrl+V immagini e testi copiati.','I tuoi font (.ttf, .otf, .woff) in Libreria.','Testo curvo, ad arco o a sorriso.','Stili: salva l’aspetto di un livello e riapplicalo con un clic, più alcuni stili pronti.','Riempi pannello: niente più frammenti minuscoli (Cadillac da oltre 14.000 a circa 300 pannelli).','Menu File in alto: la barra non va più a capo.']},
