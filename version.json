@@ -1,13 +1,13 @@
 {
- "version": "1.6",
+ "version": "1.7",
  "date": "2026-10-09",
  "notes": [
-  "Immagine di riferimento: carica una livrea già fatta (anche il customskin.tga) e ricalcala.",
-  "Estrai colore (X): ogni colore della livrea finita diventa un livello da ricolorare.",
-  "Il contagocce prende i colori dal riferimento; «Metti come livello» per lavorarci sopra."
+  "Estrai dal riferimento solo quello che scegli: colore nel pezzo, pezzo intero, area a mano o rettangolo.",
+  "«Togli lo sfondo» per ritagliare uno sponsor come logo trasparente.",
+  "Il contorno può avere un materiale suo (pezzi, forme, testi)."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "cbb87d3de961de20a1f7b346d32e2dec3f62d9c73915cffbae5dd09f4757422b"
+  "sha256": "66bf08008d54f25367644d9f9c14b8ddc0dbe3cf0d7a73d524188293c38679bf"
  }
 }
