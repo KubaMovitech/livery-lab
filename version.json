@@ -1,14 +1,13 @@
 {
- "version": "1.5",
- "date": "2026-10-07",
+ "version": "1.6",
+ "date": "2026-10-09",
  "notes": [
-  "16 concept pronti e 14 trame nuove, anche da una tua immagine.",
-  "Selezione multipla, calamita, allinea e distribuisci, gruppi tuoi.",
-  "Ctrl+V per incollare, i tuoi font, testo curvo, stili salvati.",
-  "Riempi pannello senza frammenti minuscoli; menu File."
+  "Immagine di riferimento: carica una livrea già fatta (anche il customskin.tga) e ricalcala.",
+  "Estrai colore (X): ogni colore della livrea finita diventa un livello da ricolorare.",
+  "Il contagocce prende i colori dal riferimento; «Metti come livello» per lavorarci sopra."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "7f837a2888fecb255af4a787410e955ad48215b532351e90ce29b66088dc05cf"
+  "sha256": "cbb87d3de961de20a1f7b346d32e2dec3f62d9c73915cffbae5dd09f4757422b"
  }
 }
