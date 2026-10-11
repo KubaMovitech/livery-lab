@@ -666,16 +666,28 @@ function regionNoPaint(){
   for(let i=0;i<d.length;i+=4)if(d[i]+d[i+1]+d[i+2]<96)d[i+3]=0;
   x.putImageData(id,0,0);return regionNP=c;
 }
+/* nel file esportato ogni pixel deve essere esattamente uno dei colori dei materiali: porto i bordi sfumati al più vicino */
+function snapRegions(ctx){
+  const W=ctx.canvas.width,H=ctx.canvas.height,id=ctx.getImageData(0,0,W,H),u=new Uint32Array(id.data.buffer),P=[0xFF000000,0xFF0000FF,0xFF00FF00,0xFFFF0000,0xFFFFFFFF];
+  for(let i=0;i<u.length;i++){const v=u[i];if(v===0xFF000000||v===0xFF0000FF||v===0xFF00FF00||v===0xFFFF0000||v===0xFFFFFFFF)continue;
+    const r=v&255,g=(v>>8)&255,b=(v>>16)&255;u[i]=P[r>127?(g>127?4:(b>127?4:1)):(g>127?2:(b>127?3:0))];}
+  ctx.putImageData(id,0,0);
+}
 function drawRegions(ctx,hard){
   const bm=S.baseMat&&S.baseMat!=='keep'?MATCOL[S.baseMat]:null;
   ctx.save();ctx.fillStyle=bm||'#000';ctx.fillRect(0,0,N,N);
   const rc=bm&&S.baseMat!=='paint'?regionNoPaint():regionCv;if(rc)ctx.drawImage(rc,0,0,N,N);
-  drawStack(ctx,l=>!l.guide,l=>(l.mat&&MATCOL[l.mat])||false,hard,l=>sepOutline(l)?(MATCOL[l.outMat]||null):undefined);ctx.restore();
+  drawStack(ctx,l=>!l.guide,l=>(l.mat&&MATCOL[l.mat])||false,false,l=>sepOutline(l)?(MATCOL[l.outMat]||null):undefined);ctx.restore();
+  if(hard)snapRegions(ctx);
 }
 
 const view=$('#view'),vctx=view.getContext('2d');let dpr=1,needs=false;
 function resizeView(){const r=view.getBoundingClientRect();dpr=window.devicePixelRatio||1;view.width=Math.max(10,Math.round(r.width*dpr));view.height=Math.max(10,Math.round(r.height*dpr));requestDraw();}
-function requestDraw(){if(needs)return;needs=true;requestAnimationFrame(()=>{needs=false;render();});}
+/* prestazioni: la livrea composta resta in una cache alla risoluzione dello schermo.
+   requestDraw(true) = cambia solo ciò che sta sopra (mouse, selezione, anteprime): basta ricopiare la cache.
+   Mentre trascini, i livelli sotto e sopra quelli che si muovono stanno in due cache e si ridisegna solo ciò che si muove. */
+let docVer=0,sceneCv=null,sceneKey='',DC=null;
+function requestDraw(overlayOnly){if(!overlayOnly)docVer++;if(needs)return;needs=true;requestAnimationFrame(()=>{needs=false;render();});}
 /* se il verde del wireframe non indica i pannelli (es. tutto verde), lo mostro in grigio: sulla vernice resta leggibile */
 let wireV=null;
 function wireView(){
@@ -685,14 +697,41 @@ function wireView(){
   x.putImageData(id,0,0);wireV={src:wireCv,cv:c};return c;
 }
 const s2w=(px,py)=>({x:(px-S.view.x)/S.view.z,y:(py-S.view.y)/S.view.z});
+function worldXf(c){c.setTransform(dpr*S.view.z,0,0,dpr*S.view.z,dpr*S.view.x,dpr*S.view.y);c.beginPath();c.rect(0,0,N,N);c.clip();}
+function blit(c,src){c.save();c.setTransform(1,0,0,1,0,0);c.drawImage(src,0,0);c.restore();}
+/* quali livelli si stanno modificando con il mouse in questo momento */
+function dragIds(){if(!drag)return null;if(drag.ids)return drag.ids;if(drag.id)return[drag.id];if((drag.kind==='pt'||drag.kind==='stroke')&&S.sel)return[S.sel];return null;}
+/* cache sotto/sopra per il trascinamento; null se non si può (ritagli o fusioni che attraversano il gruppo che si muove) */
+function dragCache(vk){
+  const ids=dragIds();if(!ids||S.mode==='regions')return null;
+  const L=S.layers,idx=ids.map(id=>L.findIndex(l=>l.id===id)).filter(i=>i>=0).sort((a,b)=>a-b);if(!idx.length)return null;
+  const a=idx[0],b=idx[idx.length-1];if(b-a+1!==idx.length)return null;
+  if(L.slice(a,b+1).some(l=>l.clip)||(L[b+1]&&L[b+1].clip)||L.slice(b+1).some(l=>vis(l)&&l.blend&&l.blend!=='source-over'))return null;
+  const key=vk+'|'+a+'|'+b;if(DC&&DC.key===key)return DC;
+  const fv=!S.preview,mkc=()=>{const c=mk(view.width,view.height),x=c.getContext('2d');x.save();worldXf(x);return[c,x];};
+  const [bc,bx]=mkc();bx.fillStyle=paintStyle(bx,S.basePaint,S.base,0,0,{x0:0,y0:0,x1:N,y1:N});bx.fillRect(0,0,N,N);if(fv&&refShown()&&!REF.above)drawRef(bx);
+  const below=new Set(L.slice(0,a).map(l=>l.id)),above=new Set(L.slice(b+1).map(l=>l.id));
+  drawStack(bx,l=>below.has(l.id)&&(fv||!l.guide),()=>null);bx.restore();
+  const [ac,ax]=mkc();drawStack(ax,l=>above.has(l.id)&&(fv||!l.guide),()=>null);if(refShown()&&REF.above)drawRef(ax);ax.restore();
+  return DC={key,below:bc,above:ac,set:new Set(L.slice(a,b+1).map(l=>l.id))};
+}
 function render(){
-  const c=vctx,z=S.view.z;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,view.width,view.height);
+  const c=vctx,z=S.view.z,W=view.width,H=view.height;
+  const vk=[S.view.z,S.view.x,S.view.y,dpr,W,H,S.mode,S.preview,S.wire.on,S.wire.op,REF.on,REF.op,REF.above,REF.cv?1:0].join('|');
+  if(!drag)DC=null;
+  if(!sceneCv||sceneCv.width!==W||sceneCv.height!==H){sceneCv=mk(W,H);sceneKey='';}
+  const key=docVer+'|'+vk;
+  if(key!==sceneKey){
+    const x=sceneCv.getContext('2d');x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W,H);x.save();worldXf(x);
+    const dc=dragCache(vk);
+    if(S.mode==='regions')drawRegions(x);
+    else if(dc){blit(x,dc.below);drawStack(x,l=>dc.set.has(l.id)&&(!S.preview||!l.guide),()=>null);blit(x,dc.above);}
+    else{drawScene(x,!S.preview);if(refShown()&&REF.above)drawRef(x);}
+    if(wireCv&&S.wire.on&&!S.preview){x.save();x.globalAlpha=S.wire.op;x.globalCompositeOperation=wireDark?'difference':'multiply';x.drawImage(wireView(),0,0,N,N);x.restore();}
+    x.restore();sceneKey=key;
+  }
+  c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,W,H);c.drawImage(sceneCv,0,0);
   c.setTransform(dpr*z,0,0,dpr*z,dpr*S.view.x,dpr*S.view.y);
-  c.save();c.beginPath();c.rect(0,0,N,N);c.clip();
-  if(S.mode==='regions')drawRegions(c);else drawScene(c,!S.preview);
-  if(S.mode!=='regions'&&refShown()&&REF.above)drawRef(c);
-  if(wireCv&&S.wire.on&&!S.preview){c.save();c.globalAlpha=S.wire.op;c.globalCompositeOperation=wireDark?'difference':'multiply';c.drawImage(wireView(),0,0,N,N);c.restore();}
-  c.restore();
   c.save();c.strokeStyle='rgba(120,120,120,.9)';c.lineWidth=1.5/z;c.strokeRect(0,0,N,N);
   if(!S.preview&&S.layers.some(l=>l.mirror&&vis(l))){c.setLineDash([14/z,10/z]);c.strokeStyle='rgba(255,140,0,.6)';c.beginPath();c.moveTo(0,S.axis);c.lineTo(N,S.axis);c.stroke();}
   c.restore();
@@ -891,7 +930,7 @@ function hitLayer(w){
   return null;
 }
 function nearestSeg(l,w){let best=-1,bd=40/S.view.z;const n=l.pts.length;for(let i=0;i<n;i++){const a=l.pts[i],b=l.pts[(i+1)%n],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy||1,t=clamp(((w.x-a.x)*dx+(w.y-a.y)*dy)/len,0,1),d=Math.hypot(a.x+t*dx-w.x,a.y+t*dy-w.y);if(d<bd){bd=d;best=i;}}return best;}
-let panning=null,spaceDown=false,nudgeT=null;
+let panning=null,spaceDown=false,nudgeT=null,curT=0;
 view.addEventListener('pointerdown',e=>{
   view.setPointerCapture(e.pointerId);const w=evWorld(e),{px,py}=evPos(e);
   if(e.button===1||e.button===2||spaceDown||S.tool==='pan'){panning={px,py,vx:S.view.x,vy:S.view.y};view.style.cursor='grabbing';return;}
@@ -924,13 +963,14 @@ view.addEventListener('pointerdown',e=>{
 view.addEventListener('pointermove',e=>{
   const w=evWorld(e),{px,py}=evPos(e);hover=w;
   if(panning){S.view.x=panning.vx+(px-panning.px);S.view.y=panning.vy+(py-panning.py);requestDraw();return;}
-  if(drawing&&drawing.lasso){const q=drawing.pts[drawing.pts.length-1];if(Math.hypot(q.x-w.x,q.y-w.y)>8/S.view.z)drawing.pts.push(w);requestDraw();return;}
+  if(drawing&&drawing.lasso){const q=drawing.pts[drawing.pts.length-1];if(Math.hypot(q.x-w.x,q.y-w.y)>8/S.view.z)drawing.pts.push(w);requestDraw(true);return;}
   if(!drag){
+    const now=performance.now();if(now-curT<50){requestDraw(true);return;}curT=now;
     const cur=selLayer(),hx=S.tool==='select'?hitXform(cur,w):null;
     view.style.cursor=spaceDown?'grab':hx?({rot:'grab',scale:'nwse-resize',sx:'ew-resize',sy:'ns-resize'})[hx.kind]:(S.tool==='select'&&(()=>{const h=(cur&&hitTest(cur,w))?cur:hitLayer(w);return h&&!h.locked&&h.type!=='fill';})()?'move':null)||({free:'crosshair',lasso:'crosshair',rect:'crosshair',ellipse:'crosshair',island:'cell',panel:'cell',pick:'copy',wand:'crosshair',text:'text',pan:'grab',brush:'none',eraser:'none'})[S.tool]||(cur&&hitHandle(cur,w)>=0?'pointer':'default');
-    requestDraw();return;
+    requestDraw(true);return;
   }
-  if(drag.kind==='create'){drag.b=w;}
+  if(drag.kind==='create'){drag.b=w;requestDraw(true);return;}
   else if(drag.kind==='stroke'){const p=drag.s.pts,lx=p[p.length-2],ly=p[p.length-1];if(Math.hypot(lx-w.x,ly-w.y)>Math.max(1.5/S.view.z,drag.s.size*.12))p.push(w.x,w.y);}
   else if(drag.kind==='pt'){const p=selLayer().pts[drag.idx];p.x=w.x;p.y=w.y;drag.moved=true;}
   else if(drag.kind==='sx'||drag.kind==='sy'){
@@ -954,7 +994,7 @@ view.addEventListener('pointermove',e=>{
     for(const id of drag.ids){const l=getLayer(id);if(l)shiftFrom(l,drag.origs[id],dx,dy);}}
   requestDraw();
 });
-view.addEventListener('pointerleave',()=>{hover=null;requestDraw();});
+view.addEventListener('pointerleave',()=>{hover=null;requestDraw(true);});
 view.addEventListener('pointerup',()=>{
   if(panning){panning=null;view.style.cursor='';return;}
   if(drawing&&drawing.lasso){finishLasso();return;}
@@ -1762,7 +1802,10 @@ async function saveFile(name,data){
   const blob=data instanceof Blob?data:new Blob([data]),a=el('a',{href:URL.createObjectURL(blob),download:name});document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},5000);
 }
 function renderTo(fn){const c=mk(N,N),x=c.getContext('2d');fn(x);return c;}
-function toTGA(c){const d=c.getContext('2d').getImageData(0,0,N,N).data,t=new Uint8Array(18+NN*4);t[2]=2;t[12]=N&255;t[13]=N>>8;t[14]=N&255;t[15]=N>>8;t[16]=32;t[17]=0x28;let o=18;for(let i=0;i<d.length;i+=4){t[o++]=d[i+2];t[o++]=d[i+1];t[o++]=d[i];t[o++]=255;}return t;}
+// TGA 32 bit: scambio rosso e blu lavorando su 32 bit alla volta (molto più veloce che byte per byte)
+function toTGA(c){const d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,N,N).data,src=new Uint32Array(d.buffer,d.byteOffset,NN),px=new Uint32Array(NN);
+  for(let i=0;i<NN;i++){const v=src[i];px[i]=(v&0x0000FF00)|((v&0xFF)<<16)|((v>>>16)&0xFF)|0xFF000000;}
+  const t=new Uint8Array(18+NN*4);t[2]=2;t[12]=N&255;t[13]=N>>8;t[14]=N&255;t[15]=N>>8;t[16]=32;t[17]=0x28;t.set(new Uint8Array(px.buffer),18);return t;}
 const crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
 function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=crcT[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0;}
 async function deflate(u){if(typeof CompressionStream==='undefined')return null;try{const cs=new CompressionStream('deflate-raw'),w=cs.writable.getWriter();w.write(u);w.close();return new Uint8Array(await new Response(cs.readable).arrayBuffer());}catch(e){return null;}}
@@ -1912,7 +1955,7 @@ $('#pkClose').onclick=()=>{$('#picker').hidden=true;$('#empty').hidden=!!(wireCv
 let autoGame=false;try{autoGame=localStorage.getItem('liverylab-autogame')==='1';}catch(e){}
 let agTimer=null,agBusy=false;
 const hhmm=()=>new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-function scheduleGame(){if(!FS_OK||!autoGame)return;clearTimeout(agTimer);agTimer=setTimeout(autoExport,4000);}
+function scheduleGame(){if(!FS_OK||!autoGame)return;clearTimeout(agTimer);agTimer=setTimeout(()=>{if('requestIdleCallback' in window)requestIdleCallback(()=>autoExport(),{timeout:3000});else autoExport();},6000);}
 async function autoExport(){
   if(agBusy||drag||drawing){scheduleGame();return;}
   const dir=await targetDir(false);if(!dir)return;
@@ -1973,9 +2016,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.7.1';
+const APP_VERSION='1.8';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'1.8',d:'11/10/2026',items:['Più leggera: muovere il mouse sulla tela non ridisegna più tutta la livrea (da circa 20 a 60 fotogrammi al secondo su una livrea pesante).','Trascinare, ruotare e stirare un livello ridisegna solo quello: i livelli sotto e sopra restano in memoria.','Esportazione più veloce: la conversione in TGA impiega circa la metà e la mappa materiali fa un solo passaggio invece di uno per livello.','“Aggiorna il gioco da solo” aspetta che tu sia fermo qualche secondo in più, così non ti interrompe mentre lavori.']},
  {v:'1.7.1',d:'09/10/2026',items:['Materiale del contorno anche per loghi e livelli estratti dal riferimento (Effetti del logo → Contorno).']},
  {v:'1.7',d:'09/10/2026',items:['Estrai dal riferimento solo quello che scegli: il colore solo nel pezzo cliccato, un pezzo o pannello intero con i suoi loghi, un’area disegnata a mano o un rettangolo.','“Togli lo sfondo”: ritagli uno sponsor dalla livrea e diventa un logo trasparente da spostare.','Il contorno ha un materiale suo: contorno dei pezzi, contorno e filetto delle forme, contorno dei testi (per esempio forma in vernice e bordo in cromo).']},
  {v:'1.6',d:'09/10/2026',items:['Immagine di riferimento (Documento): carica una livrea già fatta, anche il suo customskin.tga, e la vedi semitrasparente sulla tela per ricalcarla. Non viene esportata.','Estrai colore (X): clic su un colore del riferimento e tutte le parti di quel colore diventano un livello separato da ricolorare. Tolleranza regolabile e “solo la zona collegata”.','Il contagocce prende i colori dal riferimento quando è visibile.','“Metti come livello”: la livrea finita diventa il fondo su cui coprire e sostituire sponsor.']},
@@ -2043,7 +2087,7 @@ setTimeout(()=>updCheck(true),3000);setInterval(()=>updCheck(true),3600000);
 new ResizeObserver(resizeView).observe(view);
 FONTS.slice(0,4).forEach(ensureFont);
 buildTools();buildOpts();setHint();resizeView();fit();commit();dirty=false;refreshPanels();buildLib();libLoad().then(offerResume);
-window.__LL={APP_VERSION,REF,loadRef,extractColor,hitLayer,hitTest,selIds,updCheck,pickColor,xformHandles,autosave,readAutosave,resumeAutosave,autoExport,exportToGame,openGameTemplates,S,images,get LAB(){return LAB;},fillCache,drawScene,drawRegions,labelAt,readPSD};
+window.__LL={toTGA,renderTo,render,requestDraw,refreshAll,commit,autosave,buildLmuFiles,APP_VERSION,REF,loadRef,extractColor,hitLayer,hitTest,selIds,updCheck,pickColor,xformHandles,autosave,readAutosave,resumeAutosave,autoExport,exportToGame,openGameTemplates,S,images,get LAB(){return LAB;},fillCache,drawScene,drawRegions,labelAt,readPSD};
 })();
 </script>
 </body>
