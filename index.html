@@ -129,6 +129,9 @@ button{cursor:pointer}
 .cbtn2{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:5px;text-align:left}
 .cbtn2:hover{border-color:var(--accent)}.cbtn2 canvas{width:100%;height:auto;border-radius:6px;display:block}
 .cbtn2 b{font:600 13px Barlow,sans-serif}.cbtn2 small{font-size:11px;color:var(--muted);line-height:1.25}
+.grow{display:flex;align-items:center;gap:8px;margin:2px 0 6px;font-size:12.5px;color:var(--muted)}
+.grow select{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 6px;color:var(--ink)}
+.grp>summary .chip{width:12px;height:12px;border-radius:3px;border:1px solid var(--line);flex:none}
 .layer .chip.ring{background:transparent!important;border-width:3px}
 .verchip{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:12px;padding:2px 9px;font:600 12px Barlow,sans-serif}
 .verchip:hover{color:var(--ink);border-color:var(--muted)}
@@ -1504,10 +1507,19 @@ function groupNode(g){
   const eye=el('button',{class:'ib eye',title:G.on?'Nascondi il gruppo':'Mostra il gruppo','aria-label':(G.on?'Nascondi ':'Mostra ')+G.name,onclick:e=>{e.preventDefault();G.on=!G.on;commit();refreshAll();}},G.on?'●':'○');
   const gn=el('span',{class:'gname',title:G.user?'Clic: seleziona tutto il gruppo':G.name},G.name);
   if(G.user)gn.addEventListener('click',e=>{e.preventDefault();setSel(gLayers(g).map(l=>l.id));setTool('select');refreshPanels();requestDraw();});
-  d.append(el('summary',{},eye,gn,el('span',{class:'cnt'},String(n)),
+  const gm=[...new Set(gLayers(g).map(l=>l.mat||'keep'))];
+  d.append(el('summary',{},eye,gn,gm.length===1&&gm[0]!=='keep'?el('span',{class:'chip',title:'Materiale del gruppo: '+MATS.find(m=>m[0]===gm[0])[1],style:`background:${MATCOL[gm[0]]}`}):null,el('span',{class:'cnt'},String(n)),
     G.user?el('button',{class:'ib',title:'Rinomina il gruppo','aria-label':'Rinomina '+G.name,onclick:e=>{e.preventDefault();const v=prompt('Nome del gruppo',G.name);if(v&&v.trim()){G.name=v.trim();commit();refreshAll();}}},'✎'):null,
     G.user?el('button',{class:'ib',title:'Sciogli il gruppo (i livelli restano)','aria-label':'Sciogli '+G.name,onclick:e=>{e.preventDefault();ungroup(g);}},'⊟'):null));
   const body=el('ul',{class:'layers'});
+  // materiale del gruppo: vale per tutti i livelli dentro, anche nei sottogruppi
+  {const GL=gLayers(g),ms=[...new Set(GL.map(l=>l.mat||'keep'))],cur=ms.length===1?ms[0]:'mix';
+    const sel=el('select',{class:'gmat','aria-label':'Materiale del gruppo '+G.name});
+    if(cur==='mix')sel.append(el('option',{value:'mix',selected:true},'Misto (diversi)'));
+    MATS.forEach(([k,n])=>sel.append(el('option',{value:k,selected:k===cur},n)));
+    sel.addEventListener('change',()=>{if(sel.value==='mix')return;GL.forEach(l=>{l.mat=sel.value;});commit();refreshAll();
+      toast(`Materiale “${MATS.find(m=>m[0]===sel.value)[1]}” per ${GL.length} livelli di “${G.name}”. Guardalo con la vista Materiali.`,4500);});
+    body.append(el('li',{class:'grow'},el('span',{},'Materiale del gruppo'),sel));}
   if(kids.length>=2&&kids.filter(k=>VARIANT_RE.test(S.groups[k].name)).length>=2)body.append(el('li',{class:'vrow'},variantSeg(g)));
   for(const k of kids)body.append(el('li',{},groupNode(k)));
   for(const l of own)body.append(layerRow(l));
@@ -1652,6 +1664,10 @@ function alignSec(multi){
 function buildProps(){
   const p=$('#paneP');p.innerHTML='';const l=selLayer();
   if(l&&S.msel&&S.msel.length){const L=selLayers();
+    {const ms=[...new Set(L.map(l=>l.mat||'keep'))],cur=ms.length===1?ms[0]:'mix',sel=el('select',{'aria-label':'Materiale dei livelli selezionati'});
+      if(cur==='mix')sel.append(el('option',{value:'mix',selected:true},'Misto (diversi)'));MATS.forEach(([k,n])=>sel.append(el('option',{value:k,selected:k===cur},n)));
+      sel.addEventListener('change',()=>{if(sel.value==='mix')return;L.forEach(l=>{l.mat=sel.value;});commit();refreshAll();});
+      p.append(el('div',{class:'sec'},el('h3',{},'Materiale'),ctl('Per tutti',sel)));}
     p.append(el('div',{class:'sec'},el('h3',{},`${L.length} livelli selezionati`),el('p',{class:'note'},'Trascinali insieme sulla tela, spostali con le frecce, duplicali con Ctrl+D. Maiusc+clic aggiunge o toglie un livello.'),
       el('div',{class:'row',style:'flex-wrap:wrap'},el('button',{class:'btn sm pri',onclick:groupSel},'Raggruppa'),el('button',{class:'btn sm',onclick:()=>dupLayers(selIds())},'Duplica'),el('button',{class:'btn sm',onclick:()=>deleteLayers(selIds())},'Elimina'),el('button',{class:'btn sm',onclick:()=>{setSel([S.sel]);refreshAll();}},'Deseleziona gli altri'))));
     p.append(alignSec(true));p.append(stylesSec(true));return;}
@@ -2016,9 +2032,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.8';
+const APP_VERSION='1.8.1';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'1.8.1',d:'20/10/2026',items:['Materiale del gruppo: apri un gruppo nella lista Livelli (anche quelli del template, come Numplate o Carbon) e scegli un materiale per tutti i suoi livelli.','Con più livelli selezionati, un solo menu cambia il materiale a tutti.']},
  {v:'1.8',d:'11/10/2026',items:['Più leggera: muovere il mouse sulla tela non ridisegna più tutta la livrea (da circa 20 a 60 fotogrammi al secondo su una livrea pesante).','Trascinare, ruotare e stirare un livello ridisegna solo quello: i livelli sotto e sopra restano in memoria.','Esportazione più veloce: la conversione in TGA impiega circa la metà e la mappa materiali fa un solo passaggio invece di uno per livello.','“Aggiorna il gioco da solo” aspetta che tu sia fermo qualche secondo in più, così non ti interrompe mentre lavori.']},
  {v:'1.7.1',d:'09/10/2026',items:['Materiale del contorno anche per loghi e livelli estratti dal riferimento (Effetti del logo → Contorno).']},
  {v:'1.7',d:'09/10/2026',items:['Estrai dal riferimento solo quello che scegli: il colore solo nel pezzo cliccato, un pezzo o pannello intero con i suoi loghi, un’area disegnata a mano o un rettangolo.','“Togli lo sfondo”: ritagli uno sponsor dalla livrea e diventa un logo trasparente da spostare.','Il contorno ha un materiale suo: contorno dei pezzi, contorno e filetto delle forme, contorno dei testi (per esempio forma in vernice e bordo in cromo).']},

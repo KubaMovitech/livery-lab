@@ -1,13 +1,12 @@
 {
- "version": "1.8",
- "date": "2026-10-11",
+ "version": "1.8.1",
+ "date": "2026-10-20",
  "notes": [
-  "Più leggera: hover e trascinamento fluidi anche su livree pesanti.",
-  "Esportazione più veloce (TGA e mappa materiali).",
-  "«Aggiorna il gioco da solo» non interrompe più mentre lavori."
+  "Materiale del gruppo: un materiale per tutti i livelli di un gruppo, anche quelli del template.",
+  "Con più livelli selezionati, un solo menu cambia il materiale a tutti."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "1559ed98edf9d314aa8e767884635ab1aaf560f17f139bd2bbe069dc20c61937"
+  "sha256": "004301d2c0c0e43ae813dcefd9b6dcf3d2c4941ebd84edadae95202fe0aa94c9"
  }
 }
