@@ -308,7 +308,7 @@ function hasOutline(l){return (l.type==='fill'&&l.edge&&l.edge.on&&l.edge.width>
 const sepOutline=l=>!!(l.outMat&&l.outMat!=='same'&&hasOutline(l));
 function outMatCtl(l){return selectCtl('Materiale del contorno',OUTMATS,()=>l.outMat||'same',v=>{l.outMat=v;});}
 const PATS=[['none','Tinta unita'],['grad','Sfumatura a 2 colori'],['grad3','Camaleonte a 3 colori'],['carbon','Carbonio'],['stripes','Righe'],['hex','Esagoni'],['dots','Mezzitoni'],['chevron','Chevron'],['checker','Scacchi'],['camo','Mimetico'],
-  ['pin','Gessato'],['grid','Griglia'],['zigzag','Zigzag'],['waves','Onde'],['tri','Triangoli'],['splinter','Schegge'],['pixel','Mimetico digitale'],['tiger','Tigrato'],['scales','Squame'],['diamond','Rombi'],['flake','Glitter'],['brushed','Metallo spazzolato'],['speed','Linee di velocità'],['image','Da un’immagine']];
+  ['pin','Gessato'],['grid','Griglia'],['zigzag','Zigzag'],['waves','Onde'],['tri','Triangoli'],['splinter','Schegge'],['pixel','Mimetico digitale'],['tiger','Tigrato'],['scales','Squame'],['diamond','Rombi'],['flake','Glitter'],['brushed','Metallo spazzolato'],['speed','Linee di velocità'],['veins','Venature'],['arteries','Arterie'],['image','Da un’immagine']];
 const PAL=['#F4F5F0','#FFFFFF','#1B1D20','#6D6D6D','#C0202B','#006B3C','#0B3D91','#C9A24B','#E0A100','#E86A10'];
 const S={
   layers:[], sel:null, base:'#F4F5F0', axis:2048, tool:'select', uid:1,
@@ -382,6 +382,33 @@ function patTile(type,fg,bg){
   else if(type==='flake'){c=mk(128,128);x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,128,128);const R=rng(9);for(let k=0;k<900;k++){x.fillStyle=mix(fg,bg,R()*.8);x.globalAlpha=.5+R()*.5;x.fillRect(R()*128,R()*128,1+R()*2,1+R()*2);}x.globalAlpha=1;}
   else if(type==='brushed'){c=mk(256,64);x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,256,64);const R=rng(13);for(let k=0;k<160;k++){x.strokeStyle=mix(fg,bg,R());x.globalAlpha=.25+R()*.35;x.lineWidth=.6+R();const y=R()*64;x.beginPath();x.moveTo(0,y);x.lineTo(256,y+(R()-.5)*1.5);x.stroke();}x.globalAlpha=1;}
   else if(type==='speed'){c=mk(256,96);x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,256,96);const R=rng(17);x.fillStyle=fg;for(let k=0;k<9;k++){const y=k*10.7+R()*4,x0=R()*256,l=60+R()*150,th=2+R()*5;for(const ox of [-256,0,256]){x.beginPath();x.moveTo(x0+ox,y);x.lineTo(x0+ox+l,y+th/2);x.lineTo(x0+ox,y+th);x.closePath();x.fill();}}}
+  else if(type==='veins'||type==='arteries'){
+    // tessera grande e ripetibile: ogni tratto si disegna anche spostato di ±T, così ai bordi si richiude senza giunture
+    const T=512;c=mk(T,T);x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,T,T);x.lineCap='round';x.lineJoin='round';
+    const segs=[],R=rng(type==='veins'?21:33);
+    const wrapStroke=(pts,w,col)=>{x.strokeStyle=col;x.lineWidth=w;for(const ox of [-T,0,T])for(const oy of [-T,0,T]){x.beginPath();x.moveTo(pts[0][0]+ox,pts[0][1]+oy);for(let i=1;i<pts.length;i++)x.lineTo(pts[i][0]+ox,pts[i][1]+oy);x.stroke();}};
+    if(type==='veins'){
+      // venature: linee che serpeggiano, più spesse all'inizio, con qualche ramo sottile
+      const walk=(x0,y0,a,n,w0,depth)=>{let px=x0,py=y0,pts=[[px,py]];for(let i=0;i<n;i++){a+=(R()-.5)*.55;px+=Math.cos(a)*6;py+=Math.sin(a)*6;pts.push([px,py]);
+        if(depth<2&&R()<.018)walk(px,py,a+(R()<.5?1:-1)*(.5+R()*.6),Math.floor(n*(.25+R()*.3)),w0*.55,depth+1);}
+        for(let k=0;k<4;k++){const a0=Math.floor(k*pts.length/4),a1=Math.floor((k+1)*pts.length/4)+1;segs.push([pts.slice(a0,a1),Math.max(.6,w0*(1-k*.22))]);}};
+      for(let k=0;k<6;k++)walk(R()*T,R()*T,R()*Math.PI*2,110+Math.floor(R()*120),2.6+R()*2.8,0);
+      // alone morbido: disegnato a parte e sfocato una volta sola (sfocare ogni tratto era lentissimo)
+      const g=mk(T,T),gx=g.getContext('2d'),main=x;x=gx;x.lineCap='round';x.lineJoin='round';for(const [pts,w] of segs)wrapStroke(pts,w*2.6,mix(fg,bg,.55));
+      x=main;const g3=mk(3*T,3*T),g3x=g3.getContext('2d');for(let i=0;i<3;i++)for(let j=0;j<3;j++)g3x.drawImage(g,i*T,j*T);
+      x.save();x.filter='blur(3px)';x.drawImage(g3,-T,-T);x.restore();
+      for(const [pts,w] of segs)wrapStroke(pts,w,fg);
+    }else{
+      // arterie: vasi che si dividono in due e si assottigliano, con un bordo più scuro e un riflesso al centro
+      const branch=(px,py,a,w,depth)=>{if(w<1.3||depth>7)return;const n=4+Math.floor(R()*5),pts=[[px,py]];
+        for(let i=0;i<n;i++){a+=(R()-.5)*.35;px+=Math.cos(a)*(7+w*1.4);py+=Math.sin(a)*(7+w*1.4);pts.push([px,py]);}
+        segs.push([pts,w]);const k=R()<.75?2:1;for(let j=0;j<k;j++)branch(px,py,a+(k===1?(R()-.5)*.4:(j?1:-1)*(.3+R()*.45)),w*(k===1?.85:.62+R()*.12),depth+1);};
+      for(let k=0;k<3;k++)branch(R()*T,R()*T,R()*Math.PI*2,10+R()*6,0);
+      for(const [pts,w] of segs)wrapStroke(pts,w*1.45,mix(fg,'#000000',.35));
+      for(const [pts,w] of segs)wrapStroke(pts,w,fg);
+      for(const [pts,w] of segs)if(w>2.5)wrapStroke(pts,w*.28,mix(fg,'#ffffff',.45));
+    }
+  }
   else{c=mk(8,8);x=c.getContext('2d');x.fillStyle=fg;x.fillRect(0,0,8,8);}
   tileCache[key]=c;return c;
 }
@@ -1388,6 +1415,8 @@ const CONCEPTS=[
   {k:'glitter',n:'Glitter',d:'Metallizzato con scaglie del colore 3.',make:c=>({base:c.a,basePaint:P_('flake',c.a,2),baseColor:c.c})},
   {k:'pinstripe',n:'Gessato',d:'Righine sottili 3 su 1.',make:c=>({base:c.a,basePaint:P_('pin',c.a,2.5),baseColor:c.c})},
   {k:'waves',n:'Onde',d:'Onde del colore 2 sul colore 1.',make:c=>({base:c.a,layers:[cLayerRect('Onde',c.b,P_('waves',c.a,5,-12))]})},
+  {k:'veins',n:'Venature',d:'Venature sottili del colore 2 sul colore 1, effetto marmo.',make:c=>({base:c.a,layers:[cLayerRect('Venature',c.b,P_('veins',c.a,3,0))]})},
+  {k:'arteries',n:'Arterie',d:'Vasi ramificati del colore 2 sul colore 1.',make:c=>({base:c.a,layers:[cLayerRect('Arterie',c.b,P_('arteries',c.a,3,0))]})},
   {k:'chrome',n:'Cromo',d:'Base cromata con i dettagli nel colore 1.',pieces:true,make:(c,sp)=>({base:'#e3e6ea',basePaint:P_('brushed','#9aa1a9',2),baseMat:'chrome',layers:[cLayerFill('Dettagli',sp.det,c.a,null,{mat:'paint'})]})},
 ];
 function applyConcept(cp){
@@ -2032,9 +2061,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.8.1';
+const APP_VERSION='1.9';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'1.9',d:'23/10/2026',items:['Due trame nuove: Venature (linee sottili che serpeggiano, effetto marmo) e Arterie (vasi che si ramificano, con bordo scuro e riflesso).','Due concept pronti con le stesse trame.']},
  {v:'1.8.1',d:'20/10/2026',items:['Materiale del gruppo: apri un gruppo nella lista Livelli (anche quelli del template, come Numplate o Carbon) e scegli un materiale per tutti i suoi livelli.','Con più livelli selezionati, un solo menu cambia il materiale a tutti.']},
  {v:'1.8',d:'11/10/2026',items:['Più leggera: muovere il mouse sulla tela non ridisegna più tutta la livrea (da circa 20 a 60 fotogrammi al secondo su una livrea pesante).','Trascinare, ruotare e stirare un livello ridisegna solo quello: i livelli sotto e sopra restano in memoria.','Esportazione più veloce: la conversione in TGA impiega circa la metà e la mappa materiali fa un solo passaggio invece di uno per livello.','“Aggiorna il gioco da solo” aspetta che tu sia fermo qualche secondo in più, così non ti interrompe mentre lavori.']},
  {v:'1.7.1',d:'09/10/2026',items:['Materiale del contorno anche per loghi e livelli estratti dal riferimento (Effetti del logo → Contorno).']},

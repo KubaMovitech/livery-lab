@@ -1,12 +1,12 @@
 {
- "version": "1.8.1",
- "date": "2026-10-20",
+ "version": "1.9",
+ "date": "2026-10-23",
  "notes": [
-  "Materiale del gruppo: un materiale per tutti i livelli di un gruppo, anche quelli del template.",
-  "Con più livelli selezionati, un solo menu cambia il materiale a tutti."
+  "Due trame nuove: Venature (effetto marmo) e Arterie (vasi ramificati).",
+  "Due concept pronti con le stesse trame."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "004301d2c0c0e43ae813dcefd9b6dcf3d2c4941ebd84edadae95202fe0aa94c9"
+  "sha256": "237436a356673962fd92104aee30ca14115084ba214fffed16ffa101635125c1"
  }
 }
