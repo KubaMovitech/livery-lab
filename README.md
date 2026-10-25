@@ -24,6 +24,7 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Trasforma** loghi e testi: sposta, ruota, ingrandisci, stira in larghezza o altezza, rifletti; valori precisi nelle proprietà.
 - **Strumenti alla GIMP, semplificati:** ritaglia sul livello sotto (maschera), modi di fusione, sfocatura dei bordi, luminosità/contrasto/saturazione/tonalità dei loghi.
 - **Concept pronti** (bicolore, carbonio e colore, contorni, mimetico, schegge, esagoni, camaleonte, cromo…) con i tuoi tre colori, e **25 tra trame e sfumature** (anche venature, arterie e trama da una tua immagine).
+- **Grafiche pronte** (lame, tagli, schegge, graffi, pixel, frecce, onde, strappi…) messe dentro uno o più pannelli e ritagliate sulla loro forma.
 - **Selezione multipla** (Maiusc+clic, Ctrl+A), **calamita**, allinea e distribuisci, **gruppi** tuoi, **stili** salvati.
 - **Ctrl+V** per incollare immagini e testi, **i tuoi font**, **testo curvo**.
 - **Rifai una livrea già fatta:** carica il suo `customskin.tga` come **immagine di riferimento** (si ricalca, non si esporta) ed **Estrai** (X) prende un colore, un pezzo, un'area a mano o un rettangolo (anche uno sponsor, con lo sfondo tolto) e lo trasforma in un livello.

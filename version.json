@@ -1,12 +1,13 @@
 {
- "version": "1.9",
- "date": "2026-10-23",
+ "version": "2.0",
+ "date": "2026-10-25",
  "notes": [
-  "Due trame nuove: Venature (effetto marmo) e Arterie (vasi ramificati).",
-  "Due concept pronti con le stesse trame."
+  "Grafiche pronte: lame, tagli, schegge, graffi, pixel, frecce, onde, strappi e altro.",
+  "Selezioni dei pannelli e la grafica va dentro, ritagliata sulla loro forma.",
+  "Restano forme modificabili: sposta, ruota, stira, specchia, ricolora."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "237436a356673962fd92104aee30ca14115084ba214fffed16ffa101635125c1"
+  "sha256": "9b50224f934a9710dc39747a2a9efe32c1d3bb5dff27916779f3d988f1628a5b"
  }
 }
