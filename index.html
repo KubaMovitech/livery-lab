@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="it">
+<script>/* aspetto: futuristico (predefinito) o classico */try{if(localStorage.getItem("liverylab-ui")!=="classic")document.documentElement.dataset.ui="neo";}catch(e){document.documentElement.dataset.ui="neo";}</script>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Livery Lab per LMU</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Oswald:wght@500&family=Playfair+Display:ital,wght@1,600&family=Pacifico&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Oswald:wght@500&family=Playfair+Display:ital,wght@1,600&family=Pacifico&family=Rajdhani:wght@500;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#EFEDE8; --panel:#FAF9F6; --panel2:#F2F0EB; --stage:#C9C6BE; --ink:#23262B; --muted:#62656B;
@@ -200,6 +201,75 @@ button{cursor:pointer}
   .hint{display:none}
   .hud{max-width:calc(100% - 20px)}
 }
+/* ================= aspetto futuristico =================
+   cruscotto da Hypercar: vetro fumé, griglia tecnica, neon ciano e lime, angoli tagliati */
+:root[data-ui="neo"]{
+  --bg:#07090d; --panel:rgba(14,18,26,.82); --panel2:rgba(255,255,255,.045); --stage:#05070a; --ink:#e6f1ff; --muted:#7f8ea3;
+  --line:rgba(120,200,255,.16); --accent:#19e3ff; --accent-ink:#021014; --danger:#ff4d6d; --sel:#19e3ff; --lime:#c6ff2e; --glow:0 0 0 1px rgba(25,227,255,.55),0 0 18px rgba(25,227,255,.35);
+  color-scheme:dark;
+}
+:root[data-ui="neo"] body{background:radial-gradient(1200px 600px at 70% -10%,rgba(25,227,255,.10),transparent 60%),radial-gradient(900px 500px at -10% 110%,rgba(198,255,46,.07),transparent 60%),#07090d;font-family:Rajdhani,Barlow,system-ui,sans-serif;font-weight:500;font-size:14.5px;letter-spacing:.01em}
+:root[data-ui="neo"] .top,:root[data-ui="neo"] .tools,:root[data-ui="neo"] .side,:root[data-ui="neo"] .bot{background:var(--panel);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2)}
+:root[data-ui="neo"] .top{border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(25,227,255,.25),0 8px 30px rgba(0,0,0,.45);position:relative;z-index:3}
+:root[data-ui="neo"] .top::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--accent) 20%,var(--lime) 50%,var(--accent) 80%,transparent);opacity:.7}
+:root[data-ui="neo"] .brand{font:800 19px/1 Orbitron,"Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;background:linear-gradient(90deg,#fff,var(--accent) 55%,var(--lime));-webkit-background-clip:text;background-clip:text;color:transparent}
+:root[data-ui="neo"] .brand small{font:600 11px Rajdhani,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);-webkit-text-fill-color:var(--muted)}
+:root[data-ui="neo"] .btn{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:0;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:12.5px;padding:7px 13px;transition:background .15s,box-shadow .15s,color .15s}
+:root[data-ui="neo"] .btn:hover{background:rgba(25,227,255,.12);border-color:var(--accent);color:#fff}
+:root[data-ui="neo"] .btn.pri{background:linear-gradient(100deg,var(--accent),#2bffc4 55%,var(--lime));color:var(--accent-ink);border-color:transparent;box-shadow:0 0 22px rgba(25,227,255,.35)}
+:root[data-ui="neo"] .btn.pri:hover{filter:brightness(1.1)}
+:root[data-ui="neo"] .btn.sm{padding:4px 10px;font-size:11.5px}
+:root[data-ui="neo"] .btn[aria-pressed="true"],:root[data-ui="neo"] .sec .btn[aria-pressed="true"]{border-color:var(--lime);color:var(--lime);box-shadow:inset 0 0 12px rgba(198,255,46,.18)}
+:root[data-ui="neo"] .tools{border-right:1px solid var(--line)}
+:root[data-ui="neo"] .tool{border-radius:0;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);color:#9fb3c8;transition:background .15s,color .15s}
+:root[data-ui="neo"] .tool:hover{background:rgba(25,227,255,.10);color:#fff}
+:root[data-ui="neo"] .tool[aria-pressed="true"]{background:linear-gradient(135deg,rgba(25,227,255,.95),rgba(198,255,46,.85));color:#021014;box-shadow:0 0 18px rgba(25,227,255,.45)}
+:root[data-ui="neo"] .tool kbd{font-family:Orbitron,sans-serif;font-size:7.5px;opacity:.7}
+:root[data-ui="neo"] .tsep{background:linear-gradient(90deg,transparent,var(--line),transparent)}
+:root[data-ui="neo"] .stagewrap{background:
+  linear-gradient(rgba(25,227,255,.045) 1px,transparent 1px) 0 0/40px 40px,
+  linear-gradient(90deg,rgba(25,227,255,.045) 1px,transparent 1px) 0 0/40px 40px,
+  radial-gradient(ellipse at center,#0c1119 0%,#05070a 75%)}
+:root[data-ui="neo"] .float{background:rgba(10,14,20,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:0;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+:root[data-ui="neo"] .hint{color:#9fb3c8}
+:root[data-ui="neo"] .empty h2,:root[data-ui="neo"] .mbox h2{font:800 22px Orbitron,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+:root[data-ui="neo"] .side{border-left:1px solid var(--line)}
+:root[data-ui="neo"] .tabs{border-bottom:1px solid var(--line)}
+:root[data-ui="neo"] .tab{font-weight:700;letter-spacing:.05em;text-transform:uppercase;font-size:11px;color:var(--muted);padding:10px 2px}
+:root[data-ui="neo"] .hud .btn.sm{letter-spacing:.03em;padding:4px 8px;font-size:11px}
+:root[data-ui="neo"] .hud{max-width:calc(64% - 20px)}
+:root[data-ui="neo"] .tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--accent);text-shadow:0 0 12px rgba(25,227,255,.7)}
+:root[data-ui="neo"] .sec h3,:root[data-ui="neo"] .mbox h3{font:700 13px Rajdhani,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px}
+:root[data-ui="neo"] .sec h3::before{content:'';width:10px;height:2px;background:var(--lime);box-shadow:0 0 8px var(--lime)}
+:root[data-ui="neo"] .layer,:root[data-ui="neo"] .grp,:root[data-ui="neo"] .card,:root[data-ui="neo"] .cbtn2,:root[data-ui="neo"] .stbtn,:root[data-ui="neo"] .pk,:root[data-ui="neo"] .lvrow,:root[data-ui="neo"] .newsv{border-radius:0;background:rgba(255,255,255,.03);border-color:var(--line)}
+:root[data-ui="neo"] .layer:hover,:root[data-ui="neo"] .cbtn2:hover,:root[data-ui="neo"] .stbtn:hover{border-color:rgba(25,227,255,.5);background:rgba(25,227,255,.06)}
+:root[data-ui="neo"] .layer.sel{border-color:var(--accent);box-shadow:var(--glow);background:rgba(25,227,255,.08)}
+:root[data-ui="neo"] .grp>summary{letter-spacing:.06em;text-transform:uppercase;font-size:12px}
+:root[data-ui="neo"] .grp .cnt{font-family:Orbitron,sans-serif;font-size:9.5px;background:rgba(25,227,255,.12);color:var(--accent);border-radius:0}
+:root[data-ui="neo"] .cbtn2 canvas,:root[data-ui="neo"] .pt canvas{border-radius:0}
+:root[data-ui="neo"] .cbtn2 b{font-family:Rajdhani,sans-serif;letter-spacing:.04em;text-transform:uppercase;font-size:12.5px}
+:root[data-ui="neo"] .seg{border-radius:0;border-color:var(--line)}
+:root[data-ui="neo"] .seg button{letter-spacing:.05em;text-transform:uppercase;font-weight:600;font-size:11.5px}
+:root[data-ui="neo"] .seg button[aria-pressed="true"]{background:linear-gradient(100deg,var(--accent),var(--lime));color:var(--accent-ink)}
+:root[data-ui="neo"] input[type=text],:root[data-ui="neo"] input[type=number],:root[data-ui="neo"] input[type=search],:root[data-ui="neo"] select,:root[data-ui="neo"] textarea,:root[data-ui="neo"] .hex{border-radius:0!important;background:rgba(0,0,0,.35)!important;border:1px solid var(--line)!important;color:var(--ink)}
+:root[data-ui="neo"] input:focus,:root[data-ui="neo"] select:focus,:root[data-ui="neo"] textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent),0 0 12px rgba(25,227,255,.3)}
+:root[data-ui="neo"] input[type=range]{accent-color:var(--accent)}
+:root[data-ui="neo"] input[type=checkbox]{accent-color:var(--lime)}
+:root[data-ui="neo"] .hex{font-family:Orbitron,monospace!important;font-size:10.5px!important;letter-spacing:.06em;color:var(--lime)}
+:root[data-ui="neo"] .row .val,:root[data-ui="neo"] .hud span{font-family:Orbitron,sans-serif;font-size:10.5px;color:var(--accent)}
+:root[data-ui="neo"] .bot{border-top:1px solid var(--line);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-size:11px}
+:root[data-ui="neo"] .bot #status::before{content:'';display:inline-block;width:7px;height:7px;margin-right:8px;background:var(--lime);box-shadow:0 0 8px var(--lime);vertical-align:1px}
+:root[data-ui="neo"] .verchip{border-radius:0;font-family:Orbitron,sans-serif;font-size:10px;letter-spacing:.1em;background:rgba(25,227,255,.08);color:var(--accent);border-color:rgba(25,227,255,.4)}
+:root[data-ui="neo"] .verchip.upd{background:var(--lime);color:#081000;border-color:var(--lime);box-shadow:0 0 14px rgba(198,255,46,.6)}
+:root[data-ui="neo"] .toast{background:rgba(10,14,20,.92);color:var(--ink);border:1px solid var(--accent);border-radius:0;box-shadow:0 0 22px rgba(25,227,255,.35);letter-spacing:.03em}
+:root[data-ui="neo"] .mpop,:root[data-ui="neo"] .mbox{background:rgba(10,14,20,.94);backdrop-filter:blur(16px);border-color:var(--line);border-radius:0}
+:root[data-ui="neo"] .mi{border-radius:0;letter-spacing:.05em;text-transform:uppercase;font-weight:600;font-size:12.5px}
+:root[data-ui="neo"] .mi:hover{background:rgba(25,227,255,.12);color:#fff}
+:root[data-ui="neo"] .chip,:root[data-ui="neo"] .sw,:root[data-ui="neo"] .mini button,:root[data-ui="neo"] .cbtn,:root[data-ui="neo"] .row input[type=color]{border-radius:2px}
+:root[data-ui="neo"] .note{color:#8a9ab0}
+:root[data-ui="neo"] .tag{border-radius:0;font-family:Orbitron,sans-serif;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase}
+:root[data-ui="neo"] .drop{border-radius:0;border-color:var(--lime);background:rgba(198,255,46,.08);font-family:Orbitron,sans-serif;letter-spacing:.08em}
+:root[data-ui="neo"] ::-webkit-scrollbar{width:8px;height:8px}:root[data-ui="neo"] ::-webkit-scrollbar-thumb{background:rgba(25,227,255,.25)}:root[data-ui="neo"] ::-webkit-scrollbar-track{background:transparent}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
@@ -221,6 +291,8 @@ button{cursor:pointer}
         <hr>
         <button class="mi" id="bPng" role="menuitem">Esporta PNG</button>
         <button class="mi" id="bLmu" role="menuitem" title="Zip con customskin.tga e customskin_region.tga">Esporta zip per LMU</button>
+        <hr>
+        <button class="mi" id="bUi" role="menuitem">Aspetto: futuristico</button>
       </div>
     </details>
     <input type="file" id="fProj" accept=".json,application/json" hidden>
@@ -1960,6 +2032,9 @@ $('#fProj').addEventListener('change',async()=>{
   }catch(e){busy(null);toast('File non valido: '+e.message,5000);}
 });
 $('#bUndo').onclick=undo;$('#bRedo').onclick=redo;
+function uiLabel(){$('#bUi').textContent='Aspetto: '+(document.documentElement.dataset.ui==='neo'?'futuristico':'classico');}
+$('#bUi').onclick=()=>{const neo=document.documentElement.dataset.ui!=='neo';if(neo)document.documentElement.dataset.ui='neo';else delete document.documentElement.dataset.ui;
+  try{localStorage.setItem('liverylab-ui',neo?'neo':'classic');}catch(e){}uiLabel();requestDraw(true);};uiLabel();
 // il menu File si chiude dopo una scelta o cliccando fuori
 document.querySelectorAll('#fileMenu .mi').forEach(b=>b.addEventListener('click',()=>{$('#fileMenu').open=false;}));
 document.addEventListener('pointerdown',e=>{const m=$('#fileMenu');if(m.open&&!m.contains(e.target))m.open=false;});
@@ -2121,9 +2196,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='2.0';
+const APP_VERSION='2.1';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'2.1',d:'25/10/2026',items:['Nuovo aspetto futuristico: vetro fumé, griglia tecnica, neon ciano e lime, angoli tagliati, caratteri tecnici.','Si torna all’aspetto classico da File → Aspetto.']},
  {v:'2.0',d:'25/10/2026',items:['Grafiche pronte in Libreria: lama curva, doppia lama, taglio diagonale, schegge, graffi, disgregazione a pixel, frecce, onda, righe che sfumano, strappo, esagoni che si sfaldano, fulmine.','Seleziona un livello di pannelli (Riempi pannello, anche più pannelli) e la grafica viene messa dentro, ritagliata sulla loro forma; se il livello è specchiato, anche la grafica.','Le grafiche restano forme: si spostano, ruotano, stirano, riflettono e ricolorano come tutte le altre.']},
  {v:'1.9',d:'23/10/2026',items:['Due trame nuove: Venature (linee sottili che serpeggiano, effetto marmo) e Arterie (vasi che si ramificano, con bordo scuro e riflesso).','Due concept pronti con le stesse trame.']},
  {v:'1.8.1',d:'20/10/2026',items:['Materiale del gruppo: apri un gruppo nella lista Livelli (anche quelli del template, come Numplate o Carbon) e scegli un materiale per tutti i suoi livelli.','Con più livelli selezionati, un solo menu cambia il materiale a tutti.']},
