@@ -429,7 +429,11 @@ function paintStyle(ctx,p,color,dx=0,dy=0,bb=null){
 
 /* ================= geometria ================= */
 function shapePath(l){
-  const p=new Path2D(),pts=l.pts,n=pts.length;if(n<2)return p;
+  if(l.parts){const p=new Path2D();let o=0;for(const k of l.parts){addPoly(p,l.pts.slice(o,o+k),l);o+=k;}return p;}
+  const p=new Path2D();addPoly(p,l.pts,l);return p;
+}
+function addPoly(p,pts,l){
+  const n=pts.length;if(n<2)return p;
   if(!l.smooth){p.moveTo(pts[0].x,pts[0].y);for(let i=1;i<n;i++)p.lineTo(pts[i].x,pts[i].y);if(l.closed!==false)p.closePath();return p;}
   const closed=l.closed!==false,get=i=>pts[closed?((i%n)+n)%n:clamp(i,0,n-1)],t=l.tension??0.5;
   p.moveTo(pts[0].x,pts[0].y);
@@ -788,7 +792,7 @@ function overlay(c){
   const z=S.view.z,l=selLayer(),selC=getComputedStyle(document.documentElement).getPropertyValue('--sel').trim()||'#0f7b6c';
   c.save();c.lineWidth=1.5/z;c.strokeStyle=selC;c.fillStyle='#fff';
   if(l&&vis(l)&&S.tool==='select'){
-    if(l.type==='shape'){c.stroke(shapePath(l));for(const p of l.pts){c.beginPath();if(p.c)c.rect(p.x-HR(),p.y-HR(),HR()*2,HR()*2);else c.arc(p.x,p.y,HR(),0,7);c.fill();c.stroke();}}
+    if(l.type==='shape'){c.stroke(shapePath(l));if(!l.parts)for(const p of l.pts){c.beginPath();if(p.c)c.rect(p.x-HR(),p.y-HR(),HR()*2,HR()*2);else c.arc(p.x,p.y,HR(),0,7);c.fill();c.stroke();}}
     else if(l.type==='text'||l.type==='image'){const b=l.type==='text'?textBox(l):imgBox(l);c.translate(l.x,l.y);c.rotate((l.rot||0)*Math.PI/180);c.setLineDash(l.locked?[6/z,5/z]:[]);c.strokeRect(-b.w/2,-b.h/2,b.w,b.h);}
     else if(l.type==='fill'){const f=FC[l.id];if(f&&f.cv){c.setLineDash([8/z,6/z]);c.strokeRect(f.x,f.y,f.cv.width,f.cv.height);}}
   }
@@ -904,7 +908,7 @@ function paintTarget(){let l=selLayer();if(l&&l.type==='paint')return l;l=addLay
 /* ================= input ================= */
 function evPos(e){const r=view.getBoundingClientRect();return{px:e.clientX-r.left,py:e.clientY-r.top};}
 function evWorld(e){const p=evPos(e);return s2w(p.px,p.py);}
-function hitHandle(l,w){if(!l||l.type!=='shape')return -1;const r=HR()*1.6;for(let i=l.pts.length-1;i>=0;i--)if(Math.hypot(l.pts[i].x-w.x,l.pts[i].y-w.y)<=r)return i;return -1;}
+function hitHandle(l,w){if(!l||l.type!=='shape'||l.parts)return -1;const r=HR()*1.6;for(let i=l.pts.length-1;i>=0;i--)if(Math.hypot(l.pts[i].x-w.x,l.pts[i].y-w.y)<=r)return i;return -1;}
 const hitCtx=mk(2,2).getContext('2d');
 function inBox(l,w,y,rot){const b=l.type==='text'?textBox(l):imgBox(l),a=-(rot||0)*Math.PI/180,dx=w.x-l.x,dy=w.y-y;const lx=dx*Math.cos(a)-dy*Math.sin(a),ly=dx*Math.sin(a)+dy*Math.cos(a);return Math.abs(lx)<=b.w/2&&Math.abs(ly)<=b.h/2;}
 /* ---- selezione multipla, limiti e spostamenti ---- */
@@ -1039,7 +1043,7 @@ view.addEventListener('dblclick',e=>{
   if(S.tool!=='select')return;
   const w=evWorld(e),cur=selLayer();if(!cur||cur.type!=='shape'||cur.locked)return;
   const hi=hitHandle(cur,w);if(hi>=0){cur.pts[hi].c=!cur.pts[hi].c;commit();requestDraw();return;}
-  const i=nearestSeg(cur,w);if(i>=0){cur.pts.splice(i+1,0,{x:w.x,y:w.y,c:false});commit();requestDraw();}
+  if(cur.parts)return;const i=nearestSeg(cur,w);if(i>=0){cur.pts.splice(i+1,0,{x:w.x,y:w.y,c:false});commit();requestDraw();}
 });
 view.addEventListener('contextmenu',e=>{e.preventDefault();const w=evWorld(e),cur=selLayer();if(cur&&cur.type==='shape'&&!cur.locked){const hi=hitHandle(cur,w);if(hi>=0&&cur.pts.length>3){cur.pts.splice(hi,1);commit();requestDraw();}}});
 view.addEventListener('wheel',e=>{e.preventDefault();const{px,py}=evPos(e);setZoom(S.view.z*Math.exp(-e.deltaY*.0015),px,py);},{passive:false});
@@ -1438,6 +1442,61 @@ function conceptPreview(cp){
       for(const [a,b,w,h] of blocks){if(e)x.strokeRect(a+1.5,b+1.5,w-3,h-3);else x.fillRect(a,b,w,h);}}x.globalAlpha=1;}
   return c;
 }
+/* ================= grafiche pronte =================
+   Ogni grafica è fatta di forme (coordinate 0..1) che vengono adattate al riquadro dei pannelli selezionati.
+   Restano forme normali: si spostano, ruotano, stirano, specchiano e ricolorano. */
+function bez(P,t){const u=1-t;return[u*u*u*P[0][0]+3*u*u*t*P[1][0]+3*u*t*t*P[2][0]+t*t*t*P[3][0],u*u*u*P[0][1]+3*u*u*t*P[1][1]+3*u*t*t*P[2][1]+t*t*t*P[3][1]];}
+// lama: linea centrale (curva di Bézier) con spessore che varia, punte affilate
+function blade(P,wf,n=40){const up=[],dn=[];for(let i=0;i<=n;i++){const t=i/n,a=bez(P,Math.max(0,t-.01)),b=bez(P,Math.min(1,t+.01)),c=bez(P,t),dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L,w=wf(t)/2;
+  up.push([c[0]+nx*w,c[1]+ny*w]);dn.push([c[0]-nx*w,c[1]-ny*w]);}return up.concat(dn.reverse());}
+const tip=(m,a=.7,b=1)=>t=>m*Math.pow(Math.sin(Math.PI*Math.pow(t,a)),b);
+const GRAPHICS=[
+  {k:'swoosh',n:'Lama curva',d:'Una lama che si allunga e si assottiglia.',make:()=>[{c:'a',polys:[blade([[0,.78],[.35,1.02],[.6,.05],[1,.2]],tip(.3,.75,.7))]}]},
+  {k:'swoosh2',n:'Doppia lama',d:'Due lame parallele in due colori.',make:()=>[{c:'a',polys:[blade([[0,.62],[.35,.9],[.6,0],[1,.08]],tip(.26,.75,.7))]},{c:'b',polys:[blade([[.08,.95],[.42,1.08],[.66,.3],[1,.42]],tip(.12,.75,.6))]}]},
+  {k:'blade',n:'Taglio diagonale',d:'Lama dritta e affilata, come i tagli delle Hypercar.',make:()=>[{c:'a',polys:[blade([[0,.85],[.3,.66],[.7,.32],[1,.1]],t=>.22*Math.pow(t,.35)*Math.pow(1-t,.9)*2.2)]}]},
+  {k:'shards',n:'Schegge',d:'Frammenti appuntiti che si disgregano.',make:r=>{const A=[],B=[];for(let i=0;i<11;i++){const t=i/10,cx=.08+t*.84+(r()-.5)*.06,cy=.75-t*.5+(r()-.5)*.18,s=.2*(1-t*.75)*(.7+r()*.5),a=-.6+(r()-.5)*.9;
+    const poly=[[cx+Math.cos(a)*s*1.6,cy+Math.sin(a)*s*1.6],[cx+Math.cos(a+2.4)*s*.5,cy+Math.sin(a+2.4)*s*.5],[cx+Math.cos(a+Math.PI)*s*.9,cy+Math.sin(a+Math.PI)*s*.9],[cx+Math.cos(a-2.2)*s*.45,cy+Math.sin(a-2.2)*s*.45]];(i%4===3?B:A).push(poly);}
+    return[{c:'a',polys:A},{c:'b',polys:B}];}},
+  {k:'claw',n:'Graffi',d:'Tre graffi curvi paralleli.',make:()=>[{c:'a',polys:[0,1,2].map(i=>blade([[.05+i*.1,.95],[.3+i*.1,.75],[.55+i*.1,.3],[.85+i*.1,.02]],tip(.075,.6,.8)))}]},
+  {k:'pixel',n:'Disgregazione a pixel',d:'Quadrati che si sfaldano verso un lato.',make:r=>{const P=[],cols=16,rows=8;for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){const x=i/cols,pk=1-Math.pow(x,.75);if(r()<pk){const s=1/cols*.86,X=x,Y=j/rows;P.push([[X,Y],[X+s,Y],[X+s,Y+1/rows*.86],[X,Y+1/rows*.86]]);}}return[{c:'a',polys:P}];}},
+  {k:'chevrons',n:'Frecce',d:'Quattro chevron in fila che si rimpiccioliscono.',make:()=>[{c:'a',polys:[0,1,2,3].map(i=>{const x=i*.25,s=1-i*.18,h=.5*s,c=.5,w=.13*s;return[[x,c-h],[x+w,c-h],[x+w+.16*s,c],[x+w,c+h],[x,c+h],[x+.16*s,c]];})}]},
+  {k:'wave',n:'Onda',d:'Fascia ondulata con filetto.',make:()=>{const top=[],bot=[],line=[],line2=[];for(let i=0;i<=40;i++){const x=i/40,y=.5+Math.sin(x*Math.PI*1.6-.6)*.22;top.push([x,y-.16*(.4+x*.6)]);bot.push([x,y+.06]);line.push([x,y+.12]);line2.push([x,y+.16]);}
+    return[{c:'a',polys:[top.concat(bot.reverse())]},{c:'b',polys:[line.concat(line2.reverse())]}];}},
+  {k:'fade',n:'Righe che sfumano',d:'Righe orizzontali sempre più corte.',make:()=>[{c:'a',polys:[0,1,2,3,4,5,6].map(i=>{const y=i/7,l=1-i*.13,h=1/7*.55;return[[0,y],[l,y],[l-.05,y+h],[0,y+h]];})}]},
+  {k:'tear',n:'Strappo',d:'Blocco di colore con il bordo strappato.',make:r=>{const P=[[0,0],[.55,0]];let y=0;while(y<1){y=Math.min(1,y+.04+r()*.07);P.push([.48+r()*.2,y]);}P.push([0,1]);return[{c:'a',polys:[P]}];}},
+  {k:'hexfade',n:'Esagoni che si sfaldano',d:'Celle esagonali che spariscono verso un lato.',make:r=>{const P=[],R0=.045;for(let i=0;i<20;i++)for(let j=0;j<9;j++){const cx=i*R0*1.55+R0,cy=j*R0*1.8+(i%2?R0*.9:0)+R0;if(cx>1||cy>1)continue;if(r()<1-Math.pow(cx,.8)){const q=[];for(let k=0;k<6;k++){const a=Math.PI/3*k;q.push([cx+R0*.85*Math.cos(a),cy+R0*.85*Math.sin(a)]);}P.push(q);}}return[{c:'a',polys:P}];}},
+  {k:'bolt',n:'Fulmine',d:'Saetta a zigzag.',make:()=>[{c:'a',polys:[[[.0,.3],[.42,.38],[.36,.52],[1,.62],[.5,.58],[.56,.45],[.08,.4]]]}]},
+];
+function graphicTarget(){
+  // se è selezionata una grafica già ritagliata, il bersaglio resta il suo livello base (il primo non ritagliato sotto)
+  let l=selLayer();if(l&&l.clip){let i=S.layers.indexOf(l);while(i>0&&S.layers[i].clip)i--;l=S.layers[i];}
+  if(!l||l.fromTemplate||(l.type!=='fill'&&l.type!=='shape'))return null;
+  if(l.type==='fill'){const c=fillCache(l);if(!c||!c.ids.size)return null;const bbs=l.mode==='island'?LAB.ib:LAB.pb;let x0=N,y0=N,x1=0,y1=0;
+    for(const p of l.seeds){const v=labelAt(l.mode,p.x,p.y);if(!v)continue;const b=bbs[v];x0=Math.min(x0,b[0]);y0=Math.min(y0,b[1]);x1=Math.max(x1,b[2]);y1=Math.max(y1,b[3]);}
+    return x1>x0?{l,b:{x0,y0,x1,y1}}:null;}
+  const b=bounds(l);return b?{l,b}:null;
+}
+function addGraphic(g){
+  const tg=graphicTarget(),r=view.getBoundingClientRect(),c=s2w(r.width/2,r.height/2);
+  let b=tg?tg.b:{x0:c.x-500,y0:c.y-250,x1:c.x+500,y1:c.y+250};const px=(b.x1-b.x0)*.04,py=(b.y1-b.y0)*.04;b={x0:b.x0-px,y0:b.y0-py,x1:b.x1+px,y1:b.y1+py};
+  const W=b.x1-b.x0,H=b.y1-b.y0,parts=g.make(rng(Date.now()%100000)),gid='u'+(S.uid++);
+  S.groups[gid]={name:'Grafica · '+g.n,parent:null,on:true,user:true};openG.add(gid);
+  const out=[];for(const part of parts){if(!part.polys.length)continue;const pts=[],lens=[];
+    for(const q of part.polys){lens.push(q.length);for(const [u,v] of q)pts.push({x:b.x0+u*W,y:b.y0+v*H});}
+    const l=newShape(pts,false);Object.assign(l,{name:g.n+(parts.length>1?' '+(out.length+1):''),color:CC[part.c]||CC.a,paint:{pat:'none',bg:'#1B1D20',scale:1,angle:0},gp:[gid],mirrorSwap:false});
+    if(lens.length>1)l.parts=lens;if(tg){l.clip=true;l.mirror=!!tg.l.mirror;}l.id=newId();l.visible=true;l.opacity=1;l.mat='keep';out.push(l);}
+  let at;if(tg){at=S.layers.indexOf(tg.l)+1;while(S.layers[at]&&S.layers[at].clip)at++;}else{const ti=S.layers.findIndex(x=>x.onTop);at=ti>=0?ti:S.layers.length;}
+  S.layers.splice(at,0,...out);setSel(out.map(l=>l.id));setTool('select');commit();refreshAll();
+  toast(tg?`“${g.n}” dentro “${tg.l.name}”: resta solo nei suoi pannelli. Spostala, ruotala o stirala con le maniglie; il colore lo cambi nelle proprietà.`:`“${g.n}” aggiunta al centro. Per metterla dentro dei pannelli: prima “Riempi pannello”, selezioni quel livello e poi scegli la grafica.`,6500);
+}
+function graphicPreview(g){const c=mk(96,56),x=c.getContext('2d');x.fillStyle='#2a2d33';x.fillRect(0,0,96,56);const parts=g.make(rng(7));
+  for(const part of parts){x.fillStyle=CC[part.c]||CC.a;x.beginPath();for(const q of part.polys){q.forEach(([u,v],i)=>i?x.lineTo(6+u*84,5+v*46):x.moveTo(6+u*84,5+v*46));x.closePath();}x.fill();}return c;}
+function graphicSec(){
+  const tg=graphicTarget(),g=el('div',{class:'cgrid'});
+  for(const gr of GRAPHICS)g.append(el('button',{class:'cbtn2',title:gr.d,onclick:()=>addGraphic(gr)},graphicPreview(gr),el('b',{},gr.n),el('small',{},gr.d)));
+  return el('div',{class:'sec',id:'secGraphics'},el('h3',{},'Grafiche pronte'),
+    el('p',{class:'note'},tg?`Verranno messe dentro “${tg.l.name}”, ritagliate sui suoi pannelli.`:'Per metterle dentro uno o più pannelli: fai “Riempi pannello” (M) su quei pannelli, seleziona il livello e poi clicca la grafica. I colori sono i tre dei concept qui sotto.'),g);
+}
 function conceptSec(){
   const cin=(k,lab)=>{const i=el('input',{type:'color',value:CC[k],'aria-label':lab,title:lab});i.addEventListener('change',()=>{CC[k]=i.value;try{localStorage.setItem('liverylab-concept',JSON.stringify(CC));}catch(e){}buildLib();});return el('label',{class:'ccol'},i,el('span',{},lab));};
   const g=el('div',{class:'cgrid'});
@@ -1446,7 +1505,7 @@ function conceptSec(){
     el('div',{class:'row',style:'flex-wrap:wrap'},cin('a','Colore 1'),cin('b','Colore 2'),cin('c','Colore 3'),el('button',{class:'btn sm',title:'Usa i colori della palette da foto o della livrea',onclick:()=>{const src=photoPal.length>=3?photoPal:liveryColors();if(src.length<2){toast('Prima estrai una palette da una foto o usa qualche colore.');return;}CC.a=src[0];CC.b=src[1];CC.c=src[2]||CC.c;try{localStorage.setItem('liverylab-concept',JSON.stringify(CC));}catch(e){}buildLib();}},'Dalla palette')),g);
 }
 function buildLib(){
-  const p=$('#paneB');p.innerHTML='';p.append(conceptSec());
+  const p=$('#paneB');p.innerHTML='';p.append(graphicSec());p.append(conceptSec());
   const g=el('div',{class:'grid'});
   for(const it of libItems){const tb=el('button',{class:'tile',title:'Aggiungi '+it.name,'aria-label':'Aggiungi '+it.name,onclick:()=>addImageBlob(it.blob,it.name)});blobToURL(it.blob).then(u=>{tb.style.backgroundImage=`url(${u})`;});g.append(el('div',{style:'position:relative'},
     tb,
@@ -1734,7 +1793,8 @@ function buildProps(){
     p.append(paintSec(l));
     p.append(el('div',{class:'sec'},el('h3',{},l.mode==='island'?'Pezzi colorati':'Pannelli colorati'),
       el('p',{class:'note'},`${n} ${l.mode==='island'?(n===1?'pezzo':'pezzi'):(n===1?'pannello':'pannelli')} in questo livello. Con il livello selezionato e lo strumento attivo, clicca per aggiungerne o toglierne.`),
-      el('button',{class:'btn sm',onclick:()=>setTool(l.mode==='island'?'island':'panel')},l.mode==='island'?'Aggiungi o togli pezzi':'Aggiungi o togli pannelli'),
+      el('div',{class:'row',style:'flex-wrap:wrap'},el('button',{class:'btn sm',onclick:()=>setTool(l.mode==='island'?'island':'panel')},l.mode==='island'?'Aggiungi o togli pezzi':'Aggiungi o togli pannelli'),
+        el('button',{class:'btn sm pri',onclick:()=>{setTab('B');setTimeout(()=>{const e=$('#secGraphics');if(e)e.scrollIntoView({behavior:'smooth'});},50);}},'Aggiungi una grafica qui dentro')),
       checkCtl('Anche sull’altro fianco (specchio)',()=>l.mirror,v=>{l.mirror=v;}),
       l.mirror?el('p',{class:'note'},'Colora il pezzo che sta nella posizione riflessa rispetto all’asse (linea arancione). Se cade sul pezzo sbagliato, regola l’asse in Documento.'):null,
       rangeCtl('Abbondanza',()=>l.grow??3,v=>{l.grow=v;},0,12,1,v=>v+' px'),
@@ -2061,9 +2121,10 @@ async function offerResume(){
 }
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='1.9';
+const APP_VERSION='2.0';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'2.0',d:'25/10/2026',items:['Grafiche pronte in Libreria: lama curva, doppia lama, taglio diagonale, schegge, graffi, disgregazione a pixel, frecce, onda, righe che sfumano, strappo, esagoni che si sfaldano, fulmine.','Seleziona un livello di pannelli (Riempi pannello, anche più pannelli) e la grafica viene messa dentro, ritagliata sulla loro forma; se il livello è specchiato, anche la grafica.','Le grafiche restano forme: si spostano, ruotano, stirano, riflettono e ricolorano come tutte le altre.']},
  {v:'1.9',d:'23/10/2026',items:['Due trame nuove: Venature (linee sottili che serpeggiano, effetto marmo) e Arterie (vasi che si ramificano, con bordo scuro e riflesso).','Due concept pronti con le stesse trame.']},
  {v:'1.8.1',d:'20/10/2026',items:['Materiale del gruppo: apri un gruppo nella lista Livelli (anche quelli del template, come Numplate o Carbon) e scegli un materiale per tutti i suoi livelli.','Con più livelli selezionati, un solo menu cambia il materiale a tutti.']},
  {v:'1.8',d:'11/10/2026',items:['Più leggera: muovere il mouse sulla tela non ridisegna più tutta la livrea (da circa 20 a 60 fotogrammi al secondo su una livrea pesante).','Trascinare, ruotare e stirare un livello ridisegna solo quello: i livelli sotto e sopra restano in memoria.','Esportazione più veloce: la conversione in TGA impiega circa la metà e la mappa materiali fa un solo passaggio invece di uno per livello.','“Aggiorna il gioco da solo” aspetta che tu sia fermo qualche secondo in più, così non ti interrompe mentre lavori.']},
