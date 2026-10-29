@@ -6,6 +6,7 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 
 ## Cosa fa
 
+- **Percorso guidato per la prima livrea:** Scegli l'auto → Apri il template → Scegli i colori → Personalizza → Esporta, con una guida passo passo che si può chiudere. All'inizio solo gli strumenti essenziali; quelli avanzati con un clic.
 - **Apre il template PSD ufficiale** dell'auto (anche trascinandolo sulla tela): prende da solo il wireframe UVW, il colore base, gli adesivi obbligatori (bloccati al loro posto) e la mappa dei materiali. Carrozzeria, carbonio e plastiche del template restano sotto i tuoi livelli, numeri e adesivi sopra.
 - **Set di adesivi:** se il template ha più versioni (per esempio WEC e Le Mans 24h) scegli quale usare con un clic. I gruppi del PSD restano gruppi nel pannello Livelli, apribili e nascondibili.
 - **Guide del template** come la maschera "Disable for export" e la posizione dei display: si vedono nell'editor ma non finiscono nei file.
@@ -31,7 +32,8 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Ctrl+V** per incollare immagini e testi, **i tuoi font**, **testo curvo**.
 - **Rifai una livrea già fatta:** carica il suo `customskin.tga` come **immagine di riferimento** (si ricalca, non si esporta) ed **Estrai** (X) prende un colore, un pezzo, un'area a mano o un rettangolo (anche uno sponsor, con lo sfondo tolto) e lo trasforma in un livello.
 - **Contorno con un materiale suo** (pezzi, forme, testi): per esempio forma in vernice e bordo in cromo.
-- **Salvataggio automatico** nel browser e progetti salvabili in JSON.
+- **Lavori recenti:** salvataggio automatico nel browser degli ultimi 12 lavori, con miniature, e indicatore delle modifiche non ancora salvate nel progetto (JSON).
+- **Controllo prima dell'export:** template, file creati con anteprima e cartella di destinazione; poi il promemoria per lo showroom (RELOAD).
 - **Export per LMU:** `customskin.tga` e `customskin_region.tga` (TGA 32 bit non compressi, 4096 × 4096).
 
 ## Come si usa
