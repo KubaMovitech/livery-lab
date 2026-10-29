@@ -1,14 +1,12 @@
 {
- "version": "2.3",
+ "version": "2.3.1",
  "date": "2026-10-29",
  "notes": [
-  "La prima livrea in 5 passi, con una guida passo passo",
-  "Strumenti essenziali in vista, quelli avanzati con un clic",
-  "Lavori recenti con miniature e indicatore delle modifiche non salvate",
-  "Controllo prima dell'esportazione e promemoria per lo showroom"
+  "Materiali personalizzati: colori region esatti come #000400 per l'oro",
+  "Colori region del template diversi dai 5 standard conservati all'export"
  ],
  "app": {
   "file": "index.html",
-  "sha256": "39056e9de44e0a498040d279f3c1768ddbf13e14eb0854d541dc06e4ecaee3b7"
+  "sha256": "ac465a568198ed2d4fb2a757563a5a82578f253bb02f18f92bbbaeb10d44f774"
  }
 }

@@ -423,10 +423,33 @@ const mk=(w,h)=>{const c=document.createElement('canvas');c.width=Math.max(1,w);
 // nomi come in LMU (Impostazioni materiali): cosa sono Base, Opzione 1 e Opzione 2 (metallizzato, cromo, wrap, adesivi…) si sceglie nel gioco
 const MATS=[['keep','Non cambia',null],['paint','Base (nero)','#000000'],['carbon','Carbonio (rosso)','#FF0000'],['chrome','Opzione 1 (verde)','#00FF00'],['wrap','Opzione 2 (blu)','#0000FF'],['sticker','Adesivi (bianco)','#FFFFFF']];
 const MATCOL=Object.fromEntries(MATS.map(m=>[m[0],m[2]]));
+/* materiali personalizzati: un colore esatto della mappa region (es. #000400) con un nome e un colore per vederlo nella vista Materiali.
+   Stanno nel progetto (S.customMats) e si ricordano anche per i prossimi lavori. */
+const STDMATS=MATS.length,MATVIEW={};
+const matName=k=>{const m=MATS.find(m=>m[0]===k);return m?m[1]:'Non cambia';};
+const matCol=(k,hard)=>hard?MATCOL[k]:(MATVIEW[k]||MATCOL[k]);
+const normHex=h=>{h=String(h||'').trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(h))h=h.split('').map(c=>c+c).join('');return /^[0-9a-f]{6}$/i.test(h)?'#'+h.toUpperCase():null;};
+const custKey=hex=>'x'+hex.slice(1).toLowerCase();
 /* PART: nella mappa dei materiali un livello si può disegnare in due passate, corpo ('body') e contorno ('edge'),
    quando il contorno ha un materiale suo (l.outMat) */
 let PART=null;
 const OUTMATS=[['same','Come il livello'],...MATS.filter(m=>m[0]!=='keep').map(m=>[m[0],m[1]]),['keep','Nessuno (non cambia)']];
+function syncMats(){
+  MATS.splice(STDMATS);for(const k in MATVIEW)delete MATVIEW[k];
+  for(const k in MATCOL)if(k[0]==='x')delete MATCOL[k];
+  for(const c of S.customMats||[]){MATS.push([c.k,`${c.n} (${c.hex})`,c.hex]);MATCOL[c.k]=c.hex;if(c.show)MATVIEW[c.k]=c.show;}
+  OUTMATS.splice(0,OUTMATS.length,['same','Come il livello'],...MATS.filter(m=>m[0]!=='keep').map(m=>[m[0],m[1]]),['keep','Nessuno (non cambia)']);
+  const lg=document.getElementById('legend');if(lg)lg.innerHTML='';
+}
+let savedCust=[];try{savedCust=JSON.parse(localStorage.getItem('liverylab-custmats')||'[]');}catch(e){}
+function rememberCust(){const m=new Map(savedCust.map(c=>[c.k,c]));for(const c of S.customMats)m.set(c.k,c);savedCust=[...m.values()];try{localStorage.setItem('liverylab-custmats',JSON.stringify(savedCust));}catch(e){}}
+function addCustomMat(hex,n,show,quiet){
+  hex=normHex(hex);if(!hex){toast('Colore non valido: scrivilo come #000400.');return null;}
+  if(['#000000','#FF0000','#00FF00','#0000FF','#FFFFFF'].includes(hex)){toast('Questo colore è già uno dei materiali standard.');return null;}
+  const k=custKey(hex);let c=S.customMats.find(c=>c.k===k);
+  if(!c){c={k,hex,n:n||'Materiale '+hex,show:show||'#C9A24B'};S.customMats.push(c);}
+  syncMats();rememberCust();if(!quiet){commit();refreshAll();}return c;
+}
 function hasOutline(l){return (l.type==='fill'&&l.edge&&l.edge.on&&l.edge.width>0)||(l.type==='shape'&&((l.stroke&&l.stroke.on&&l.stroke.width>0)||(l.pin&&l.pin.on)))||(l.type==='text'&&l.outline&&l.outline.on&&l.outline.width>0)||(l.type==='image'&&l.fx&&l.fx.outline&&l.fx.outline.on&&l.fx.outline.width>0);}
 const sepOutline=l=>!!(l.outMat&&l.outMat!=='same'&&hasOutline(l));
 function outMatCtl(l){return selectCtl('Materiale del contorno',OUTMATS,()=>l.outMat||'same',v=>{l.outMat=v;});}
@@ -437,7 +460,7 @@ const S={
   layers:[], sel:null, base:'#F4F5F0', axis:2048, tool:'select', uid:1,
   wire:{on:true,op:0.85}, view:{z:0.2,x:0,y:0}, mode:'livery', preview:false,
   act:{fstyle:'fill', ew:10, color:'#C0202B', pat:'none', bg:'#1B1D20', scale:1, angle:0, c2:'#006B3C', c3:'#C9A24B', gangle:0}, brush:40, eraser:60,
-  tplName:null, projName:'', msel:[], snap:true, groups:{}, baseMat:'keep', basePaint:{pat:'none',bg:'#1B1D20',scale:1,angle:0},
+  tplName:null, projName:'', customMats:[], msel:[], snap:true, groups:{}, baseMat:'keep', basePaint:{pat:'none',bg:'#1B1D20',scale:1,angle:0},
 };
 const images={};          // id -> {img (canvas|img), w, h, url, name}
 let wireCv=null, wireDark=true, regionCv=null, regionNP=null;
@@ -456,7 +479,7 @@ function setStatus(s){$('#status').textContent=s;}
 function busy(msg){const b=$('#busy');if(msg){b.textContent=msg;b.hidden=false;}else b.hidden=true;}
 function newId(){return 'L'+(S.uid++);}
 const getLayer=id=>S.layers.find(l=>l.id===id), selLayer=()=>getLayer(S.sel);
-function snapshot(){return JSON.stringify({layers:S.layers,base:S.base,baseMat:S.baseMat,basePaint:S.basePaint,projName:S.projName,groups:S.groups,axis:S.axis,uid:S.uid,sel:S.sel});}
+function snapshot(){return JSON.stringify({customMats:S.customMats,layers:S.layers,base:S.base,baseMat:S.baseMat,basePaint:S.basePaint,projName:S.projName,groups:S.groups,axis:S.axis,uid:S.uid,sel:S.sel});}
 function commit(){hist=hist.slice(0,histPos+1);hist.push(snapshot());if(hist.length>80)hist.shift();histPos=hist.length-1;dirty=true;if(!projDirty){projDirty=true;updUnsaved();}updateUndo();afterChange();}
 function projClean(saved){projDirty=false;if(saved)projSaved=true;updUnsaved();}
 function updUnsaved(){const u=$('#unsaved');if(!u)return;const has=!!(wireCv||S.layers.length);u.hidden=!has||(!projDirty&&!projSaved);
@@ -464,7 +487,7 @@ function updUnsaved(){const u=$('#unsaved');if(!u)return;const has=!!(wireCv||S.
   u.title=projDirty?'Le modifiche sono al sicuro nel browser (Lavori recenti), ma non ancora nel file del progetto. Clic o Ctrl+S per salvarlo.':'Il file del progetto contiene tutte le modifiche.';
   if(typeof projTitle==='function')projTitle();}
 function afterChange(){if(typeof scheduleSave==='function')scheduleSave();if(typeof scheduleGame==='function')scheduleGame();}
-function restore(js){const o=JSON.parse(js);S.layers=o.layers;S.base=o.base;S.baseMat=o.baseMat||'keep';S.projName=o.projName||S.projName||'';S.basePaint=o.basePaint||{pat:'none',bg:'#1B1D20',scale:1,angle:0};S.groups=o.groups||{};S.axis=o.axis;S.uid=Math.max(S.uid,o.uid);S.sel=getLayer(o.sel)?o.sel:null;S.msel=(S.msel||[]).filter(id=>getLayer(id)&&id!==S.sel);refreshAll();}
+function restore(js){const o=JSON.parse(js);S.customMats=o.customMats||[];syncMats();S.layers=o.layers;S.base=o.base;S.baseMat=o.baseMat||'keep';S.projName=o.projName||S.projName||'';S.basePaint=o.basePaint||{pat:'none',bg:'#1B1D20',scale:1,angle:0};S.groups=o.groups||{};S.axis=o.axis;S.uid=Math.max(S.uid,o.uid);S.sel=getLayer(o.sel)?o.sel:null;S.msel=(S.msel||[]).filter(id=>getLayer(id)&&id!==S.sel);refreshAll();}
 function undo(){if(histPos>0){histPos--;restore(hist[histPos]);updateUndo();afterChange();}}
 function redo(){if(histPos<hist.length-1){histPos++;restore(hist[histPos]);updateUndo();afterChange();}}
 function updateUndo(){$('#bUndo').disabled=histPos<=0;$('#bRedo').disabled=histPos>=hist.length-1;}
@@ -851,15 +874,23 @@ function regionNoPaint(){
 /* nel file esportato ogni pixel deve essere esattamente uno dei colori dei materiali: porto i bordi sfumati al più vicino */
 function snapRegions(ctx){
   const W=ctx.canvas.width,H=ctx.canvas.height,id=ctx.getImageData(0,0,W,H),u=new Uint32Array(id.data.buffer),P=[0xFF000000,0xFF0000FF,0xFF00FF00,0xFFFF0000,0xFFFFFFFF];
+  if(S.customMats&&S.customMats.length){
+    // ogni pixel va al colore region più vicino (standard o personalizzato): i bordi sfumati non creano colori nuovi
+    const pal=P.concat(S.customMats.map(c=>{const v=parseInt(c.hex.slice(1),16);return (0xFF000000|((v&255)<<16)|(v&0xFF00)|(v>>16))>>>0;}));
+    const pr=pal.map(v=>[v&255,(v>>8)&255,(v>>16)&255]),cache=new Map(pal.map(v=>[v,v]));
+    for(let i=0;i<u.length;i++){const v=u[i];let o=cache.get(v);
+      if(o===undefined){const r=v&255,g=(v>>8)&255,b=(v>>16)&255;let bd=1e9;for(let j=0;j<pal.length;j++){const q=pr[j],d=(r-q[0])**2+(g-q[1])**2+(b-q[2])**2;if(d<bd){bd=d;o=pal[j];}}cache.set(v,o);}
+      if(o!==v)u[i]=o;}
+    ctx.putImageData(id,0,0);return;}
   for(let i=0;i<u.length;i++){const v=u[i];if(v===0xFF000000||v===0xFF0000FF||v===0xFF00FF00||v===0xFFFF0000||v===0xFFFFFFFF)continue;
     const r=v&255,g=(v>>8)&255,b=(v>>16)&255;u[i]=P[r>127?(g>127?4:(b>127?4:1)):(g>127?2:(b>127?3:0))];}
   ctx.putImageData(id,0,0);
 }
 function drawRegions(ctx,hard){
-  const bm=S.baseMat&&S.baseMat!=='keep'?MATCOL[S.baseMat]:null;
+  const bm=S.baseMat&&S.baseMat!=='keep'?matCol(S.baseMat,hard):null;
   ctx.save();ctx.fillStyle=bm||'#000';ctx.fillRect(0,0,N,N);
   const rc=bm&&S.baseMat!=='paint'?regionNoPaint():regionCv;if(rc)ctx.drawImage(rc,0,0,N,N);
-  drawStack(ctx,l=>!l.guide,l=>(l.mat&&MATCOL[l.mat])||false,false,l=>sepOutline(l)?(MATCOL[l.outMat]||null):undefined);ctx.restore();
+  drawStack(ctx,l=>!l.guide,l=>(l.mat&&matCol(l.mat,hard))||false,false,l=>sepOutline(l)?(matCol(l.outMat,hard)||null):undefined);ctx.restore();
   if(hard)snapRegions(ctx);
 }
 
@@ -1396,6 +1427,7 @@ async function importPSD(buf,fname){
   busy('Preparo livelli, adesivi e materiali…');await tick();
   // nuova sessione: il lavoro precedente resta tra i recenti
   await flushSave();newDoc();S.projName='';projHandle=null;
+  S.customMats=[];syncMats();
   S.layers=[];S.sel=null;S.groups={};S.baseMat='keep';S.basePaint={pat:'none',bg:'#1B1D20',scale:1,angle:0};for(const k in images)delete images[k];regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
   let uvw=null,regCount=0,imp=0,baseFound=false,over=false;const rc=mk(N,N),rx=rc.getContext('2d');rx.fillStyle='#000';rx.fillRect(0,0,N,N);
   const hex=c=>'#'+c.map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
@@ -1419,7 +1451,12 @@ async function importPSD(buf,fname){
     S.layers.push({id:newId(),type:'image',name:l.name,onTop,imgId:id,x:l.left+px.w/2,y:l.top+px.h/2,scale:1,rot:0,mirror:false,mirrorRot:true,
       visible:guide?!/mask|disable/i.test(l.name):!l.hidden,opacity:l.opacity/255,locked:true,mat:'keep',fromTemplate:true,gp:l.gids.slice(),guide:guide||undefined});imp++;
   }
-  if(regCount)regionCv=rc;
+  if(regCount){regionCv=rc;S.customMats=[];syncMats();
+    // colori region del template diversi dai 5 standard (es. #000400): li tengo come materiali personalizzati, altrimenti l'export li appiattirebbe
+    const d=rx.getImageData(0,0,N,N).data,cnt=new Map();for(let i=0;i<d.length;i+=4*97){if(d[i+3]<255)continue;const v=(d[i]<<16)|(d[i+1]<<8)|d[i+2];cnt.set(v,(cnt.get(v)||0)+1);}
+    const STD=new Set([0,0xFF0000,0x00FF00,0x0000FF,0xFFFFFF]);
+    for(const [v,n] of cnt)if(!STD.has(v)&&n>200){const h='#'+v.toString(16).padStart(6,'0').toUpperCase();const sv=savedCust.find(c=>c.hex===h);addCustomMat(h,sv?sv.n:'Dal template '+h,sv?sv.show:'#'+((v*2654435761)>>>8&0xFFFFFF).toString(16).padStart(6,'0'),true);}
+  }
   S.tplName=fname;
   if(uvw){
     const px=layerRGBA(uvw);const c=mk(N,N);c.getContext('2d').drawImage(toCanvas(px),uvw.left,uvw.top);wireCv=c;wireDark=true;
@@ -1759,8 +1796,8 @@ function layerRow(l){
     el('span',{class:'nm',title:`${l.name} (${l.guide?'guida, non viene esportata':TYPEN[l.type]}) · Maiusc+clic per selezionarne più di uno`,onclick:e=>{if(e.shiftKey){toggleSel(l.id);refreshPanels();requestDraw();return;}setSel([l.id]);if(!['select','eraser','brush'].includes(S.tool)&&!(l.type==='fill'&&(S.tool==='island'||S.tool==='panel')))setTool('select');refreshPanels();buildOpts();requestDraw();}},l.name),
     l.guide?el('span',{class:'tag',title:'Guida del template: si vede solo qui, non finisce nei file'},'guida'):null,
     l.locked?el('span',{class:'note',style:'margin:0',title:'Bloccato'},'🔒'):null,
-    l.mat&&l.mat!=='keep'?el('span',{class:'chip',title:'Materiale: '+MATS.find(m=>m[0]===l.mat)[1],style:`background:${MATCOL[l.mat]}`}):null,
-    sepOutline(l)&&MATCOL[l.outMat]?el('span',{class:'chip ring',title:'Materiale del contorno: '+MATS.find(m=>m[0]===l.outMat)[1],style:`border-color:${MATCOL[l.outMat]}`}):null,
+    l.mat&&l.mat!=='keep'?el('span',{class:'chip',title:'Materiale: '+matName(l.mat),style:`background:${matCol(l.mat)}`}):null,
+    sepOutline(l)&&MATCOL[l.outMat]?el('span',{class:'chip ring',title:'Materiale del contorno: '+matName(l.outMat),style:`border-color:${matCol(l.outMat)}`}):null,
     el('button',{class:'ib',title:'Porta avanti','aria-label':'Porta avanti',onclick:()=>moveLayer(l.id,1)},'↑'),
     el('button',{class:'ib',title:'Porta indietro','aria-label':'Porta indietro',onclick:()=>moveLayer(l.id,-1)},'↓'),
     l.fromTemplate?null:el('button',{class:'ib',title:'Duplica (Ctrl+D)','aria-label':'Duplica',onclick:()=>dupLayer(l.id)},'⧉'),
@@ -1782,7 +1819,7 @@ function groupNode(g){
   const gn=el('span',{class:'gname',title:G.user?'Clic: seleziona tutto il gruppo':G.name},G.name);
   if(G.user)gn.addEventListener('click',e=>{e.preventDefault();setSel(gLayers(g).map(l=>l.id));setTool('select');refreshPanels();requestDraw();});
   const gm=[...new Set(gLayers(g).map(l=>l.mat||'keep'))];
-  d.append(el('summary',{},eye,gn,gm.length===1&&gm[0]!=='keep'?el('span',{class:'chip',title:'Materiale del gruppo: '+MATS.find(m=>m[0]===gm[0])[1],style:`background:${MATCOL[gm[0]]}`}):null,el('span',{class:'cnt'},String(n)),
+  d.append(el('summary',{},eye,gn,gm.length===1&&gm[0]!=='keep'?el('span',{class:'chip',title:'Materiale del gruppo: '+matName(gm[0]),style:`background:${matCol(gm[0])}`}):null,el('span',{class:'cnt'},String(n)),
     G.user?el('button',{class:'ib',title:'Rinomina il gruppo','aria-label':'Rinomina '+G.name,onclick:e=>{e.preventDefault();const v=prompt('Nome del gruppo',G.name);if(v&&v.trim()){G.name=v.trim();commit();refreshAll();}}},'✎'):null,
     G.user?el('button',{class:'ib',title:'Sciogli il gruppo (i livelli restano)','aria-label':'Sciogli '+G.name,onclick:e=>{e.preventDefault();ungroup(g);}},'⊟'):null));
   const body=el('ul',{class:'layers'});
@@ -1792,7 +1829,7 @@ function groupNode(g){
     if(cur==='mix')sel.append(el('option',{value:'mix',selected:true},'Misto (diversi)'));
     MATS.forEach(([k,n])=>sel.append(el('option',{value:k,selected:k===cur},n)));
     sel.addEventListener('change',()=>{if(sel.value==='mix')return;GL.forEach(l=>{l.mat=sel.value;});commit();refreshAll();
-      toast(`Materiale “${MATS.find(m=>m[0]===sel.value)[1]}” per ${GL.length} livelli di “${G.name}”. Guardalo con la vista Materiali.`,4500);});
+      toast(`Materiale “${matName(sel.value)}” per ${GL.length} livelli di “${G.name}”. Guardalo con la vista Materiali.`,4500);});
     body.append(el('li',{class:'grow'},el('span',{},'Materiale del gruppo'),sel));}
   if(kids.length>=2&&kids.filter(k=>VARIANT_RE.test(S.groups[k].name)).length>=2)body.append(el('li',{class:'vrow'},variantSeg(g)));
   for(const k of kids)body.append(el('li',{},groupNode(k)));
@@ -1831,11 +1868,11 @@ function fillLayerList(ul){
     ul.append(layerRow(l));
   });
   if(q&&!ul.childElementCount)ul.append(el('li',{class:'note'},'Nessun livello con questo nome.'));
-  const bm=MATS.find(m=>m[0]===S.baseMat);
+
   ul.append(el('li',{class:'layer base',title:'Colore e materiale della base: si cambiano in Documento'},
     el('span',{class:'ib eye'},'■'),el('span',{class:'chip',style:`background:${S.base}`}),
     el('span',{class:'nm',onclick:()=>setTab('D')},'Base'),
-    S.baseMat&&S.baseMat!=='keep'?el('span',{class:'chip',title:'Materiale: '+bm[1],style:`background:${MATCOL[S.baseMat]}`}):null,
+    S.baseMat&&S.baseMat!=='keep'?el('span',{class:'chip',title:'Materiale: '+matName(S.baseMat),style:`background:${matCol(S.baseMat)}`}):null,
     el('button',{class:'btn sm',onclick:()=>setTab('D')},'Modifica')));
 }
 function ctl(label,input,val){return el('div',{class:'row'},el('label',{},label),input,val||null);}
@@ -1959,7 +1996,8 @@ function buildProps(){
     (l.type==='image'||l.type==='text'||l.type==='shape')?checkCtl('Bloccato (non si sposta)',()=>l.locked,v=>{l.locked=v;}):null,
     l.erase&&l.erase.length?el('button',{class:'btn sm',onclick:()=>{l.erase=[];commit();refreshAll();}},`Ripristina le parti cancellate (${l.erase.length})`):null));
   p.append(el('div',{class:'sec'},el('h3',{},'Materiale'),selectCtl('Materiale',MATS.map(m=>[m[0],m[1]]),()=>l.mat||'keep',v=>{l.mat=v;}),
-    el('p',{class:'note'},'Finisce nella mappa delle regioni (vista “Materiali”). In LMU, nelle Impostazioni materiali, scegli cosa diventano Base, Opzione 1 e Opzione 2: vernice metallizzata, cromo, wrap, adesivi, opaco o lucido.')));
+    el('p',{class:'note'},'Finisce nella mappa delle regioni (vista “Materiali”). In LMU, nelle Impostazioni materiali, scegli cosa diventano Base, Opzione 1 e Opzione 2: vernice metallizzata, cromo, wrap, adesivi, opaco o lucido.'),
+    el('button',{class:'btn sm',onclick:()=>{setTab('D');setTimeout(()=>{const e=$('#secCust');if(e)e.scrollIntoView({behavior:'smooth'});},50);}},'Materiale personalizzato…')));
   if(!l.fromTemplate)p.append(el('div',{class:'sec'},el('h3',{},'Fusione e maschera'),selectCtl('Fusione',BLENDS,()=>l.blend||'source-over',v=>{l.blend=v;}),
     rangeCtl('Sfoca bordi',()=>l.blur||0,v=>{l.blur=v;},0,60,1,v=>v+' px'),
     checkCtl('Ritaglia sul livello sotto (maschera)',()=>l.clip,v=>{l.clip=v;}),
@@ -2078,6 +2116,7 @@ function buildDoc(){
   const ax=el('input',{type:'number',value:S.axis,step:.5,min:0,max:N,'aria-label':'Asse di specchio'});ax.addEventListener('change',()=>{S.axis=clamp(+ax.value||0,0,N);commit();requestDraw();});
   const bmat=el('select',{'aria-label':'Materiale della base'});MATS.forEach(([k,n])=>bmat.append(el('option',{value:k,selected:k===(S.baseMat||'keep')},k==='keep'?'Come nel template':n)));
   bmat.addEventListener('change',()=>{S.baseMat=bmat.value;commit();refreshAll();if(S.baseMat!=='keep'&&S.mode!=='regions')toast('Guarda il risultato con la vista “Materiali”. I dettagli che devono restare alla Base: Materiale → Base (nero).',5000);});
+  p.append(custMatSec());
   const B={get color(){return S.base;},set color(v){S.base=v;},get paint(){return S.basePaint;},set paint(v){S.basePaint=v;}};
   const bs=paintSec(B,'Base');bs.append(ctl('Materiale',bmat),
     el('p',{class:'note'},'Il colore riempie tutta la tela sotto i tuoi livelli. Il materiale vale per tutta la carrozzeria verniciata: le parti in carbonio e gli adesivi del template restano come sono. Per i dettagli che devono tornare alla Base (region nero), scegli Materiale → Base (nero) nelle loro proprietà.'));p.append(bs);
@@ -2105,7 +2144,28 @@ function buildDoc(){
   }
   p.append(el('div',{class:'sec'},el('h3',{},'Esportare per LMU'),el('p',{class:'note'},FS_OK?'“Esporta nel gioco” scrive customskin.tga (la livrea) e customskin_region.tga (i materiali) direttamente nella cartella della livrea. “Esporta zip” crea gli stessi file in uno zip, se preferisci copiarli a mano.':'“Esporta zip” crea uno zip con customskin.tga (la livrea) e customskin_region.tga (i materiali). Estrai lo zip e copia i file nella cartella delle livree custom della tua auto. Aprendo Livery Lab come file in Chrome o Edge puoi invece leggere e scrivere direttamente nelle cartelle del gioco.')));
 }
-function setLegend(){const lg=$('#legend');lg.hidden=S.mode!=='regions';if(!lg.hidden&&!lg.childElementCount)MATS.filter(m=>m[2]).forEach(m=>lg.append(el('span',{},el('i',{style:`background:${m[2]}`}),m[1].replace(/ \(.*\)/,''))));}
+function custMatSec(){
+  const sec=el('div',{class:'sec',id:'secCust'},el('h3',{},'Materiali personalizzati'),
+    el('p',{class:'note'},'Un colore esatto della mappa region, per esempio #000400 per l’oro. Viene scritto così com’è in customskin_region.tga; nella vista Materiali lo vedi con il colore di anteprima. Poi sceglilo come Materiale di un livello, di un gruppo, di un contorno o della base.'));
+  for(const c of S.customMats){
+    const nm=el('input',{type:'text',value:c.n,'aria-label':'Nome del materiale',style:'flex:1;min-width:0'});nm.addEventListener('change',()=>{c.n=nm.value.trim()||c.n;syncMats();rememberCust();commit();refreshAll();});
+    const hx=el('input',{type:'text',value:c.hex,class:'hex','aria-label':'Colore region esatto',style:'width:84px'});
+    hx.addEventListener('change',()=>{const h=normHex(hx.value);if(!h||S.customMats.some(o=>o!==c&&o.hex===h)){toast('Colore non valido o già usato.');hx.value=c.hex;return;}
+      const ok=c.k,nk=custKey(h);c.hex=h;c.k=nk;for(const l of S.layers){if(l.mat===ok)l.mat=nk;if(l.outMat===ok)l.outMat=nk;}if(S.baseMat===ok)S.baseMat=nk;syncMats();rememberCust();commit();refreshAll();});
+    const sh=el('input',{type:'color',value:c.show||'#C9A24B','aria-label':'Colore di anteprima',title:'Colore con cui lo vedi nella vista Materiali'});sh.addEventListener('change',()=>{c.show=sh.value;syncMats();rememberCust();commit();refreshAll();});
+    const used=S.layers.filter(l=>l.mat===c.k||l.outMat===c.k).length+(S.baseMat===c.k?1:0);
+    sec.append(el('div',{class:'row',style:'gap:6px'},sh,nm,hx,el('button',{class:'ib',title:'Togli il materiale'+(used?` (usato da ${used})`:''),'aria-label':'Togli '+c.n,onclick:()=>{
+      if(used&&!confirm(`“${c.n}” è usato da ${used} ${used===1?'elemento':'elementi'}: tornano a “Non cambia”. Continuo?`))return;
+      for(const l of S.layers){if(l.mat===c.k)l.mat='keep';if(l.outMat===c.k)l.outMat='same';}if(S.baseMat===c.k)S.baseMat='keep';
+      S.customMats=S.customMats.filter(o=>o!==c);syncMats();commit();refreshAll();}},'✕')));}
+  const nh=el('input',{type:'text',placeholder:'#000400',class:'hex','aria-label':'Nuovo colore region',style:'width:84px'});
+  sec.append(el('div',{class:'row',style:'flex-wrap:wrap;gap:6px'},nh,el('button',{class:'btn sm pri',onclick:()=>{const v=nh.value.trim();if(!v){nh.focus();return;}const n=prompt('Nome del materiale','Oro');if(n===null)return;if(addCustomMat(v,n.trim()))toast('Materiale aggiunto: ora lo trovi nei menu Materiale.');}},'Aggiungi'),
+    S.customMats.some(c=>c.hex==='#000400')?null:el('button',{class:'btn sm',onclick:()=>addCustomMat('#000400','Oro','#C9A24B')},'Oro #000400')));
+  const extra=savedCust.filter(c=>!S.customMats.some(o=>o.k===c.k));
+  if(extra.length)sec.append(el('div',{class:'row',style:'flex-wrap:wrap;gap:6px'},el('span',{class:'note',style:'margin:0'},'Usati prima:'),...extra.map(c=>el('button',{class:'btn sm',title:'Aggiungi a questo lavoro',onclick:()=>addCustomMat(c.hex,c.n,c.show)},`${c.n} ${c.hex}`))));
+  return sec;
+}
+function setLegend(){const lg=$('#legend');lg.hidden=S.mode!=='regions';if(!lg.hidden&&!lg.childElementCount)MATS.filter(m=>m[2]).forEach(m=>lg.append(el('span',{},el('i',{style:`background:${matCol(m[0])}`}),m[1].replace(/ \(.*\)/,''))));}
 $('#vLiv').onclick=()=>{S.mode='livery';setLegend();$('#vLiv').setAttribute('aria-pressed','true');$('#vMat').setAttribute('aria-pressed','false');requestDraw();};
 $('#vMat').onclick=()=>{S.mode='regions';setLegend();$('#vMat').setAttribute('aria-pressed','true');$('#vLiv').setAttribute('aria-pressed','false');requestDraw();if(!regionCv&&!S.layers.some(l=>l.mat&&l.mat!=='keep'))toast('Nessun materiale ancora: imposta “Materiale” nelle proprietà di un livello.');};
 function togglePreview(){S.preview=!S.preview;$('#bPrev').setAttribute('aria-pressed',String(S.preview));requestDraw();if(S.preview)toast('Anteprima: la livrea come la vedrà il gioco. G o “Anteprima” per tornare.');}
@@ -2504,9 +2564,10 @@ $('#bRecent').onclick=()=>{$('#fileMenu').open=false;openRecent();};
 $('#unsaved').onclick=()=>saveProject(false);$('#unsaved').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();saveProject(false);}};
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='2.3';
+const APP_VERSION='2.3.1';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'2.3.1',d:'29/10/2026',items:['Materiali personalizzati: un colore region esatto, per esempio nero #000400 per l’oro, con nome e colore di anteprima (Documento → Materiali personalizzati, pronto il pulsante “Oro #000400”). Compare in tutti i menu Materiale: livelli, gruppi, contorni e base.','Nel customskin_region.tga il colore viene scritto esatto: i bordi sfumati vanno al materiale più vicino, senza creare colori nuovi.','Se il template ha colori region diversi dai 5 standard, vengono tenuti come materiali personalizzati invece di essere appiattiti.']},
  {v:'2.3',d:'29/10/2026',items:['La prima livrea in 5 passi: Scegli l’auto → Apri il template → Scegli i colori → Personalizza → Esporta. Una guida in basso a sinistra ti accompagna con i pulsanti giusti a ogni passo; si chiude e si riapre con “Guida” in alto.','Strumenti essenziali: nella barra a sinistra selezione, riempimento, forme, testo e loghi. Lama, lazo, pennello, gomma, contagocce ed estrai colore con “⋯” (le scorciatoie funzionano sempre).','Nelle proprietà materiali, maschere ed effetti sono in fondo, richiusi: si aprono da soli quando sono attivi.','Lavori recenti: gli ultimi 12 lavori restano nel browser, ognuno con la sua miniatura (File → Lavori recenti, e nella schermata iniziale). Aprire un altro template non cancella più il lavoro precedente.','In basso “● Modifiche non salvate” finché non salvi il progetto (clic o Ctrl+S); il pallino compare anche nel titolo della scheda.','Prima di esportare: template usato, file che vengono creati con anteprima, cartella di destinazione e file che verranno sostituiti. Dopo, il promemoria per lo showroom di LMU (RELOAD).','Testi piccoli più grandi e più leggibili.','Il file dei materiali viene esportato anche quando hai cambiato solo il materiale della base.']},
  {v:'2.2',d:'29/10/2026',items:['Materiali con i nomi di LMU: Base (nero), Carbonio (rosso), Opzione 1 (verde), Opzione 2 (blu), Adesivi (bianco). Cosa diventano Opzione 1 e 2 (cromo, wrap, adesivi…) lo scegli nelle Impostazioni materiali del gioco.','Le mie palette: palette salvate con nome (pronte: Nero e oro, Tricolore, Neon notte, Blu e bianco), da scegliere nella barra in alto; crea una palette dai colori della livrea, dai recenti o dalla foto.','Più colori recenti nella barra in alto e nelle proprietà.','I tuoi loghi in cima alla Libreria, con nome e ricerca; “Salva nella libreria” per qualunque logo o parte estratta già sulla livrea.','Progetto con nome e cartella: “Salva con nome…” sceglie dove, poi Ctrl+S salva lì; nome del progetto in Documento.','Trame Circuito e Topografico e i concept Nero e oro, Circuito oro, Topografico.']},
  {v:'2.1',d:'25/10/2026',items:['Nuovo aspetto futuristico: vetro fumé, griglia tecnica, neon ciano e lime, angoli tagliati, caratteri tecnici.','Si torna all’aspetto classico da File → Aspetto.']},
