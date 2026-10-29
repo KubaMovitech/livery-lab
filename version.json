@@ -1,12 +1,12 @@
 {
- "version": "2.3.1",
+ "version": "2.3.2",
  "date": "2026-10-29",
  "notes": [
-  "Materiali personalizzati: colori region esatti come #000400 per l'oro",
-  "Colori region del template diversi dai 5 standard conservati all'export"
+  "Materiali personalizzati con il loro colore vero nella vista Materiali",
+  "Evidenzia per distinguerli dalla Base"
  ],
  "app": {
   "file": "index.html",
-  "sha256": "ac465a568198ed2d4fb2a757563a5a82578f253bb02f18f92bbbaeb10d44f774"
+  "sha256": "c4ed34ce467f59a3e57b3c1709d1983ddd5fd122b700fa6dc676280dbc830c35"
  }
 }
