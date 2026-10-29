@@ -437,7 +437,7 @@ const OUTMATS=[['same','Come il livello'],...MATS.filter(m=>m[0]!=='keep').map(m
 function syncMats(){
   MATS.splice(STDMATS);for(const k in MATVIEW)delete MATVIEW[k];
   for(const k in MATCOL)if(k[0]==='x')delete MATCOL[k];
-  for(const c of S.customMats||[]){MATS.push([c.k,`${c.n} (${c.hex})`,c.hex]);MATCOL[c.k]=c.hex;if(c.show)MATVIEW[c.k]=c.show;}
+  for(const c of S.customMats||[]){MATS.push([c.k,`${c.n} (${c.hex})`,c.hex]);MATCOL[c.k]=c.hex;if(c.hl&&c.show)MATVIEW[c.k]=c.show;}
   OUTMATS.splice(0,OUTMATS.length,['same','Come il livello'],...MATS.filter(m=>m[0]!=='keep').map(m=>[m[0],m[1]]),['keep','Nessuno (non cambia)']);
   const lg=document.getElementById('legend');if(lg)lg.innerHTML='';
 }
@@ -2146,15 +2146,16 @@ function buildDoc(){
 }
 function custMatSec(){
   const sec=el('div',{class:'sec',id:'secCust'},el('h3',{},'Materiali personalizzati'),
-    el('p',{class:'note'},'Un colore esatto della mappa region, per esempio #000400 per l’oro. Viene scritto così com’è in customskin_region.tga; nella vista Materiali lo vedi con il colore di anteprima. Poi sceglilo come Materiale di un livello, di un gruppo, di un contorno o della base.'));
+    el('p',{class:'note'},'Un colore esatto della mappa region, per esempio #000400 per l’oro. Viene scritto così com’è in customskin_region.tga e nella vista Materiali lo vedi con il suo colore vero (#000400 è quasi nero: con “Evidenzia” lo distingui dalla Base). Poi sceglilo come Materiale di un livello, di un gruppo, di un contorno o della base.'));
   for(const c of S.customMats){
     const nm=el('input',{type:'text',value:c.n,'aria-label':'Nome del materiale',style:'flex:1;min-width:0'});nm.addEventListener('change',()=>{c.n=nm.value.trim()||c.n;syncMats();rememberCust();commit();refreshAll();});
     const hx=el('input',{type:'text',value:c.hex,class:'hex','aria-label':'Colore region esatto',style:'width:84px'});
     hx.addEventListener('change',()=>{const h=normHex(hx.value);if(!h||S.customMats.some(o=>o!==c&&o.hex===h)){toast('Colore non valido o già usato.');hx.value=c.hex;return;}
       const ok=c.k,nk=custKey(h);c.hex=h;c.k=nk;for(const l of S.layers){if(l.mat===ok)l.mat=nk;if(l.outMat===ok)l.outMat=nk;}if(S.baseMat===ok)S.baseMat=nk;syncMats();rememberCust();commit();refreshAll();});
-    const sh=el('input',{type:'color',value:c.show||'#C9A24B','aria-label':'Colore di anteprima',title:'Colore con cui lo vedi nella vista Materiali'});sh.addEventListener('change',()=>{c.show=sh.value;syncMats();rememberCust();commit();refreshAll();});
+    const sh=el('input',{type:'color',value:c.show||'#C9A24B','aria-label':'Colore di evidenziazione',title:c.hl?'Colore con cui lo evidenzi nella vista Materiali':'Attiva “Evidenzia” per vederlo con questo colore'});if(!c.hl)sh.style.opacity='.35';sh.addEventListener('change',()=>{c.show=sh.value;c.hl=true;syncMats();rememberCust();commit();refreshAll();});
+    const hl=el('label',{class:'chk',style:'margin:0;white-space:nowrap',title:'Nella vista Materiali mostralo con un colore ben visibile invece del suo colore vero'},(()=>{const i=el('input',{type:'checkbox'});i.checked=!!c.hl;i.onchange=()=>{c.hl=i.checked;syncMats();rememberCust();commit();refreshAll();};return i;})(),'Evidenzia');
     const used=S.layers.filter(l=>l.mat===c.k||l.outMat===c.k).length+(S.baseMat===c.k?1:0);
-    sec.append(el('div',{class:'row',style:'gap:6px'},sh,nm,hx,el('button',{class:'ib',title:'Togli il materiale'+(used?` (usato da ${used})`:''),'aria-label':'Togli '+c.n,onclick:()=>{
+    sec.append(el('div',{class:'row',style:'gap:6px'},sh,nm,hx,hl,el('button',{class:'ib',title:'Togli il materiale'+(used?` (usato da ${used})`:''),'aria-label':'Togli '+c.n,onclick:()=>{
       if(used&&!confirm(`“${c.n}” è usato da ${used} ${used===1?'elemento':'elementi'}: tornano a “Non cambia”. Continuo?`))return;
       for(const l of S.layers){if(l.mat===c.k)l.mat='keep';if(l.outMat===c.k)l.outMat='same';}if(S.baseMat===c.k)S.baseMat='keep';
       S.customMats=S.customMats.filter(o=>o!==c);syncMats();commit();refreshAll();}},'✕')));}
@@ -2564,9 +2565,10 @@ $('#bRecent').onclick=()=>{$('#fileMenu').open=false;openRecent();};
 $('#unsaved').onclick=()=>saveProject(false);$('#unsaved').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();saveProject(false);}};
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='2.3.1';
+const APP_VERSION='2.3.2';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'2.3.2',d:'29/10/2026',items:['Nella vista Materiali i materiali personalizzati si vedono con il loro colore vero (per esempio #000400 quasi nero), come nel file che va al gioco.','“Evidenzia” accanto al materiale, in Documento → Materiali personalizzati, lo mostra invece con un colore ben visibile per distinguerlo dalla Base.']},
  {v:'2.3.1',d:'29/10/2026',items:['Materiali personalizzati: un colore region esatto, per esempio nero #000400 per l’oro, con nome e colore di anteprima (Documento → Materiali personalizzati, pronto il pulsante “Oro #000400”). Compare in tutti i menu Materiale: livelli, gruppi, contorni e base.','Nel customskin_region.tga il colore viene scritto esatto: i bordi sfumati vanno al materiale più vicino, senza creare colori nuovi.','Se il template ha colori region diversi dai 5 standard, vengono tenuti come materiali personalizzati invece di essere appiattiti.']},
  {v:'2.3',d:'29/10/2026',items:['La prima livrea in 5 passi: Scegli l’auto → Apri il template → Scegli i colori → Personalizza → Esporta. Una guida in basso a sinistra ti accompagna con i pulsanti giusti a ogni passo; si chiude e si riapre con “Guida” in alto.','Strumenti essenziali: nella barra a sinistra selezione, riempimento, forme, testo e loghi. Lama, lazo, pennello, gomma, contagocce ed estrai colore con “⋯” (le scorciatoie funzionano sempre).','Nelle proprietà materiali, maschere ed effetti sono in fondo, richiusi: si aprono da soli quando sono attivi.','Lavori recenti: gli ultimi 12 lavori restano nel browser, ognuno con la sua miniatura (File → Lavori recenti, e nella schermata iniziale). Aprire un altro template non cancella più il lavoro precedente.','In basso “● Modifiche non salvate” finché non salvi il progetto (clic o Ctrl+S); il pallino compare anche nel titolo della scheda.','Prima di esportare: template usato, file che vengono creati con anteprima, cartella di destinazione e file che verranno sostituiti. Dopo, il promemoria per lo showroom di LMU (RELOAD).','Testi piccoli più grandi e più leggibili.','Il file dei materiali viene esportato anche quando hai cambiato solo il materiale della base.']},
  {v:'2.2',d:'29/10/2026',items:['Materiali con i nomi di LMU: Base (nero), Carbonio (rosso), Opzione 1 (verde), Opzione 2 (blu), Adesivi (bianco). Cosa diventano Opzione 1 e 2 (cromo, wrap, adesivi…) lo scegli nelle Impostazioni materiali del gioco.','Le mie palette: palette salvate con nome (pronte: Nero e oro, Tricolore, Neon notte, Blu e bianco), da scegliere nella barra in alto; crea una palette dai colori della livrea, dai recenti o dalla foto.','Più colori recenti nella barra in alto e nelle proprietà.','I tuoi loghi in cima alla Libreria, con nome e ricerca; “Salva nella libreria” per qualunque logo o parte estratta già sulla livrea.','Progetto con nome e cartella: “Salva con nome…” sceglie dove, poi Ctrl+S salva lì; nome del progetto in Documento.','Trame Circuito e Topografico e i concept Nero e oro, Circuito oro, Topografico.']},
