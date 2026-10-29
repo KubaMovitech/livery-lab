@@ -1,12 +1,14 @@
 {
- "version": "2.1",
- "date": "2026-10-25",
+ "version": "2.2",
+ "date": "2026-10-29",
  "notes": [
-  "Nuovo aspetto futuristico: vetro fumé, griglia tecnica, neon ciano e lime, angoli tagliati.",
-  "Si torna all'aspetto classico da File → Aspetto."
+  "Materiali con i nomi di LMU: Base, Carbonio, Opzione 1, Opzione 2, Adesivi.",
+  "Palette salvate, più colori recenti, loghi in cima alla Libreria con ricerca.",
+  "Progetto con nome e cartella (Salva con nome, poi Ctrl+S).",
+  "Trame Circuito e Topografico, concept Nero e oro e Circuito oro."
  ],
  "app": {
   "file": "index.html",
-  "sha256": "d4617b21a5480067fc6f00cc8e763d99cbc730207eb55c9972aeebdd114be022"
+  "sha256": "2dac0c2349064e35a5d1d58e28dd5d92ef4cd3e5179066a09de55eb4a8af14d6"
  }
 }

@@ -15,6 +15,8 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Trame e sfumature:** carbonio, righe, esagoni, mezzitoni, chevron, scacchi, mimetico, sfumatura a 2 colori e camaleonte a 3 colori.
 - **Testi con contorno e ombra**, per numeri di gara e nomi pilota.
 - **Specchio sull'altro fianco**, con colore invertito, e **filetto** lungo i bordi.
+- **Materiali con i nomi di LMU:** Base (nero), Carbonio (rosso), Opzione 1 (verde), Opzione 2 (blu), Adesivi (bianco); cosa diventano Opzione 1 e 2 lo scegli nelle Impostazioni materiali del gioco.
+- **Palette salvate**, colori recenti, **loghi salvati** nella libreria e **progetti con nome e cartella** (Salva con nome, poi Ctrl+S).
 - **Materiali:** anche la base ha un materiale (per esempio tutta la carrozzeria in cromo o wrap); ogni livello può diventare vernice, carbonio, cromo, wrap o adesivi, così i dettagli possono tornare vernice (region nero).
 - **Libreria personale** di loghi e **palette estratta da una foto**.
 - **Contagocce** (K, o Alt+clic), **colori recenti**, **colori della livrea** in Libreria e codici **hex** accanto a ogni colore.
