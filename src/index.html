@@ -29,6 +29,10 @@
 @@include worker/main.js
 </script>
 <script>
+/* moduli isolati (src/modules/): funzioni che ricevono le loro dipendenze; vengono collegati dentro l'app, nei file omonimi di src/app/ */
+const LL_MODULES={};
+@@include modules/render.js
+@@include modules/export.js
 (function(){
 "use strict";
 @@include app/core.js
@@ -46,6 +50,8 @@
 @@include app/graphics.js
 @@include app/panels.js
 @@include app/export.js
+@@include app/project.js
+@@include app/menus.js
 @@include app/game-folders.js
 @@include app/autosave.js
 @@include app/guide.js

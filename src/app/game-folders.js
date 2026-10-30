@@ -74,7 +74,7 @@ async function exportToGame(){
   if(!dir&&!gameDir){const h=await pickGameDir();if(h)dir=await targetDir(true);}
   if(!dir){toast('Nella cartella collegata non trovo UserData: scegli tu dove salvare la livrea.',5000);dir=await pickOutDir();if(!dir||!(await perm(dir,'readwrite')))return;}
   {const ex=[];for(const n of exportNames())if(await exists(dir,n))ex.push(n);
-    if(!await exportCheck({dir:dir.name,exist:ex}))return;if(expCheck)owOk.add(S.tplName+'|'+dir.name);}
+    if(!await exportCheck({dir:dir.name,exist:ex}))return;if(expCheckOn())owOk.add(S.tplName+'|'+dir.name);}
   try{
     const files=await buildLmuFiles();busy(null);
     const key=S.tplName+'|'+dir.name;

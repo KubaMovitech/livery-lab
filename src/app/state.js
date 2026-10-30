@@ -9,9 +9,6 @@ const matName=k=>{const m=MATS.find(m=>m[0]===k);return m?m[1]:'Non cambia';};
 const matCol=(k,hard)=>hard?MATCOL[k]:(MATVIEW[k]||MATCOL[k]);
 const normHex=h=>{h=String(h||'').trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(h))h=h.split('').map(c=>c+c).join('');return /^[0-9a-f]{6}$/i.test(h)?'#'+h.toUpperCase():null;};
 const custKey=hex=>'x'+hex.slice(1).toLowerCase();
-/* PART: nella mappa dei materiali un livello si può disegnare in due passate, corpo ('body') e contorno ('edge'),
-   quando il contorno ha un materiale suo (l.outMat) */
-let PART=null;
 const OUTMATS=[['same','Come il livello'],...MATS.filter(m=>m[0]!=='keep').map(m=>[m[0],m[1]]),['keep','Nessuno (non cambia)']];
 function syncMats(){
   MATS.splice(STDMATS);for(const k in MATVIEW)delete MATVIEW[k];
