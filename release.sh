@@ -1,10 +1,12 @@
 #!/bin/sh
 # uso: sh release.sh <versione> "nota 1" "nota 2" …
-# Controlla che APP_VERSION in index.html sia <versione> e scrive version.json (il canale degli aggiornamenti
+# Controlla che index.html sia aggiornato rispetto a src/, che APP_VERSION in index.html sia <versione> e scrive version.json (il canale degli aggiornamenti
 # letto dall'app su raw.githubusercontent.com) con lo SHA-256 di index.html. Va committato insieme a index.html.
 set -e
 V=$1; shift
 ROOT=$(cd "$(dirname "$0")" && pwd)
+# index.html deve essere ricostruito dai moduli in src/ (python3 tools/build.py)
+python3 "$ROOT/tools/build.py" --check --lint
 grep -q "const APP_VERSION='$V'" "$ROOT/index.html" || { echo "index.html: APP_VERSION non è $V"; exit 1; }
 grep -q "{v:'$V'," "$ROOT/index.html" || { echo "index.html: manca la voce $V nel CHANGELOG"; exit 1; }
 python3 - "$ROOT" "$V" "$@" <<'P'

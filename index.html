@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="it">
+<!-- Generato da tools/build.py a partire da src/: non modificare questo file, modifica i moduli in src/ e ricostruisci. -->
 <script>/* aspetto: futuristico (predefinito) o classico */try{if(localStorage.getItem("liverylab-ui")!=="classic")document.documentElement.dataset.ui="neo";}catch(e){document.documentElement.dataset.ui="neo";}</script>
 <head>
 <meta charset="utf-8">
@@ -413,7 +414,9 @@ details.sec.adv>summary i{font-style:normal;font-size:11.5px;color:var(--accent)
      Se il browser non permette il worker, lo stesso codice gira nel thread principale. -->
 <script id="wkSrc" type="text/plain">
 "use strict";
+/* Web Worker: codice che gira fuori dal thread dell'interfaccia (vedi app/core.js per il client) */
 const N=4096,NN=N*N;
+/* ================= lettura dei file PSD e livelli in pixel ================= */
 function readPSD(buf){
   const dv=new DataView(buf),u8=new Uint8Array(buf);let o=0;
   const U8=()=>u8[o++],U16=()=>{const v=dv.getUint16(o);o+=2;return v;},I16=()=>{const v=dv.getInt16(o);o+=2;return v;},U32=()=>{const v=dv.getUint32(o);o+=4;return v;},I32=()=>{const v=dv.getInt32(o);o+=4;return v;};
@@ -614,6 +617,7 @@ function makeTGA(buf,pal){
   const t=new Uint8Array(18+NN*4);t[2]=2;t[12]=N&255;t[13]=N>>8;t[14]=N&255;t[15]=N>>8;t[16]=32;t[17]=0x28;t.set(new Uint8Array(buf,0,NN*4),18);return t;
 }
 
+/* ================= messaggi dal thread principale ================= */
 /* ritaglio un livello sui pixel visibili: molti livelli del template sono grandi come la tela ma quasi vuoti */
 function cropPx(l,px){if(!px)return null;const {w,h,rgba}=px;let x0=w,y0=h,x1=-1,y1=-1;
   for(let y=0;y<h;y++){let o=y*w*4+3,a=-1,b=-1;for(let x=0;x<w;x++,o+=4)if(rgba[o]){if(a<0)a=x;b=x;}if(a>=0){if(a<x0)x0=a;if(b>x1)x1=b;if(y<y0)y0=y;y1=y;}}
@@ -650,6 +654,7 @@ self.onmessage=e=>{
 <script>
 (function(){
 "use strict";
+/* ================= base: utilità comuni, misure dei tempi, client del Web Worker ================= */
 const N=4096, NN=N*N;
 const $=(s,r=document)=>r.querySelector(s);
 const el=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a){const v=a[k];if(k==='class')e.className=v;else if(k==='style')e.style.cssText=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v!==false&&v!=null)e.setAttribute(k,v===true?'':v);}for(const x of c.flat()){if(x==null||x===false)continue;e.append(x.nodeType?x:document.createTextNode(x));}return e;};

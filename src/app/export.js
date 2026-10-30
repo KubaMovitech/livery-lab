@@ -1,0 +1,145 @@
+/* ================= salvataggio ed export ================= */
+async function getDownloads(){try{return window.claude&&claude.use?await claude.use('downloads'):null;}catch(e){return null;}}
+async function saveFile(name,data){
+  const dl=await getDownloads();
+  if(dl){try{await dl.save({filename:name,data});toast('Salvato: '+name);}catch(e){toast(e&&e.code==='declined'?'Salvataggio annullato.':'Non riesco a salvare: '+(e&&e.message||e));}return;}
+  const blob=data instanceof Blob?data:new Blob([data]),a=el('a',{href:URL.createObjectURL(blob),download:name});document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},5000);
+}
+// lettura dei pixel qui, conversione in TGA (e pulizia dei materiali) nel worker
+async function canvasTGA(cv,pal){const t=pnow(),d=cv.getContext('2d',{willReadFrequently:true}).getImageData(0,0,N,N).data;const tr=pnow()-t;
+  const r=await wcall('tga',{buf:d.buffer,pal},[d.buffer]);perfLog(pal?'Export: TGA materiali':'Export: TGA livrea',tr+r.ms,`lettura pixel ${Math.round(tr)} ms + worker ${Math.round(r.ms)} ms`);return r.tga;}
+function renderTo(fn){const c=mk(N,N),x=c.getContext('2d');fn(x);return c;}
+// TGA 32 bit: scambio rosso e blu lavorando su 32 bit alla volta (molto più veloce che byte per byte)
+function toTGA(c){const d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,N,N).data,src=new Uint32Array(d.buffer,d.byteOffset,NN),px=new Uint32Array(NN);
+  for(let i=0;i<NN;i++){const v=src[i];px[i]=(v&0x0000FF00)|((v&0xFF)<<16)|((v>>>16)&0xFF)|0xFF000000;}
+  const t=new Uint8Array(18+NN*4);t[2]=2;t[12]=N&255;t[13]=N>>8;t[14]=N&255;t[15]=N>>8;t[16]=32;t[17]=0x28;t.set(new Uint8Array(px.buffer),18);return t;}
+const crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=crcT[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0;}
+async function deflate(u){if(typeof CompressionStream==='undefined')return null;try{const cs=new CompressionStream('deflate-raw'),w=cs.writable.getWriter();w.write(u);w.close();return new Uint8Array(await new Response(cs.readable).arrayBuffer());}catch(e){return null;}}
+async function makeZip(files){
+  const parts=[],cds=[];let off=0;
+  for(const f of files){
+    const nb=new TextEncoder().encode(f.name),crc=crc32(f.data),comp=await deflate(f.data),method=comp?8:0,body=comp||f.data;
+    const lh=new DataView(new ArrayBuffer(30));lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,method,true);lh.setUint16(12,0x21,true);lh.setUint32(14,crc,true);lh.setUint32(18,body.length,true);lh.setUint32(22,f.data.length,true);lh.setUint16(26,nb.length,true);
+    const cd=new DataView(new ArrayBuffer(46));cd.setUint32(0,0x02014b50,true);cd.setUint16(4,20,true);cd.setUint16(6,20,true);cd.setUint16(8,0x0800,true);cd.setUint16(10,method,true);cd.setUint16(14,0x21,true);cd.setUint32(16,crc,true);cd.setUint32(20,body.length,true);cd.setUint32(24,f.data.length,true);cd.setUint16(28,nb.length,true);cd.setUint32(42,off,true);
+    parts.push(lh.buffer,nb,body);cds.push(cd.buffer,nb);off+=30+nb.length+body.length;
+  }
+  const cdSize=cds.reduce((s,b)=>s+(b.byteLength??b.length),0),eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true);eo.setUint16(8,files.length,true);eo.setUint16(10,files.length,true);eo.setUint32(12,cdSize,true);eo.setUint32(16,off,true);
+  return new Blob([...parts,...cds,eo.buffer],{type:'application/zip'});
+}
+$('#bPng').onclick=async()=>{busy('Preparo il PNG…');await fillsReady();const c=renderTo(drawScene),b=await new Promise(r=>c.toBlob(r,'image/png'));busy(null);await saveFile('livrea_4096.png',b);};
+async function buildLmuFiles(quiet){
+  const busy_=quiet?()=>{}:busy;busy_('Preparo la livrea…');await fillsReady();const t0=pnow();
+  let t=pnow();const cv=renderTo(drawScene);perfLog('Export: disegno livrea',pnow()-t);
+  const files=[{name:'customskin.tga',data:await canvasTGA(cv,null)}];
+  if(hasRegion()){busy_('Preparo i materiali…');
+    t=pnow();const rc=renderTo(x=>drawRegions(x,true,true));perfLog('Export: disegno materiali',pnow()-t);
+    files.push({name:'customskin_region.tga',data:await canvasTGA(rc,regionPalette())});}
+  perfLog('Export: totale',pnow()-t0,quiet?'automatico':'');
+  return files;
+}
+$('#bLmu').onclick=async()=>{
+  if(!S.layers.length&&!wireCv){toast('Apri prima un template.');return;}
+  if(!await exportCheck({zip:true}))return;
+  try{const files=await buildLmuFiles();busy('Comprimo…');await tick();const z=await makeZip(files);busy(null);await saveFile('livrea_lmu.zip',z);dirty=false;exportDone({zip:true,files:files.map(f=>f.name)});}
+  catch(e){busy(null);toast('Esportazione non riuscita: '+e.message,5000);}
+};
+let expCheck=true;try{expCheck=localStorage.getItem('liverylab-expcheck')!=='0';}catch(e){}
+const doneShown=new Set();
+const hasRegion=()=>!!(regionCv||S.layers.some(l=>l.mat&&l.mat!=='keep')||(S.baseMat&&S.baseMat!=='keep'));
+const exportNames=()=>['customskin.tga'].concat(hasRegion()?['customskin_region.tga']:[]);
+function miniCv(fn){const T=144,c=mk(T,T),x=c.getContext('2d');x.save();x.scale(T/N,T/N);fn(x);x.restore();return c;}
+// finestra semplice: risolve con il valore del pulsante premuto (null se chiusa)
+function dialog(title,body,buttons){return new Promise(res=>{
+  let m;const close=v=>{m.remove();document.removeEventListener('keydown',kd,true);res(v);};
+  const kd=e=>{if(e.key==='Escape'){e.stopPropagation();close(null);}};
+  m=el('div',{class:'modal',role:'dialog','aria-modal':'true','aria-label':title},el('div',{class:'mbox sm'},el('h2',{},title),...body,
+    el('div',{class:'row',style:'justify-content:flex-end;gap:8px;margin-top:12px'},...buttons.map(([lab,v,pri])=>el('button',{class:'btn'+(pri?' pri':''),onclick:()=>close(v)},lab)))));
+  document.addEventListener('keydown',kd,true);document.body.append(m);const f=m.querySelector('.btn.pri');if(f)f.focus();});}
+async function exportCheck(o){
+  if(!expCheck)return true;
+  await fillsReady();
+  const names=exportNames(),own=S.layers.filter(l=>!l.fromTemplate).length,warn=[];
+  if(!own&&S.baseMat==='keep')warn.push('Non hai ancora aggiunto niente: esporti il template così com’è.');
+  if(!regionCv)warn.push('Il template non ha una mappa materiali: '+(names.length>1?'nel file materiali conta solo quello che hai assegnato tu.':'esporto solo la livrea, senza file dei materiali.'));
+  if(o.exist&&o.exist.length)warn.push(`Nella cartella ci sono già ${o.exist.join(' e ')}: verranno sostituiti.`);
+  const files=el('div',{class:'xfiles'},el('div',{class:'xfile'},miniCv(x=>drawScene(x,false)),el('div',{},el('b',{},'customskin.tga'),el('small',{},'La livrea · 4096 × 4096, TGA 32 bit'))),
+    names.length>1?el('div',{class:'xfile'},miniCv(x=>drawRegions(x,false)),el('div',{},el('b',{},'customskin_region.tga'),el('small',{},'I materiali · nero Base, rosso Carbonio, verde Opzione 1, blu Opzione 2, bianco Adesivi'))):null);
+  const chk=el('input',{type:'checkbox'});
+  const v=await dialog('Prima di esportare',[
+    el('div',{class:'xkv'},el('span',{},'Template'),el('div',{},S.tplName||'nessuno'),el('span',{},'Livelli tuoi'),el('div',{},String(own)),
+      el('span',{},'Destinazione'),el('div',{},o.zip?'livrea_lmu.zip nei Download del browser':`cartella “${o.dir}”`)),
+    el('h3',{},'File che creo'),files,...warn.map(w=>el('p',{class:'xwarn'},'⚠ '+w)),
+    o.zip?el('p',{class:'note'},'Dopo il download estrai lo zip e copia i file nella cartella della livrea (UserData/Liveries nella cartella di LMU).'):null,
+    el('label',{class:'chk'},chk,'Non mostrare più questo controllo')],[['Annulla',false],[o.zip?'Scarica lo zip':'Esporta nel gioco',true,true]]);
+  if(v&&chk.checked){expCheck=false;try{localStorage.setItem('liverylab-expcheck','0');}catch(e){}}
+  return !!v;
+}
+function exportDone(o){
+  const key=(o.zip?'zip':o.dir)+'|'+S.tplName;
+  setStatus(o.zip?'Zip pronto alle '+hhmm():`Esportato in ${o.dir} alle ${hhmm()}`);
+  if(doneShown.has(key)){toast(`Fatto: ${o.files.join(' e ')} ${o.zip?'nello zip':'scritti in “'+o.dir+'”'}. Nello showroom premi RELOAD.`,4500);return;}
+  doneShown.add(key);
+  dialog('Livrea esportata',[el('p',{},o.zip?`Lo zip contiene ${o.files.join(' e ')}.`:`${o.files.join(' e ')} ${o.files.length>1?'sono stati scritti':'è stato scritto'} in “${o.dir}”.`),
+    el('h3',{},'Per vederla in Le Mans Ultimate'),
+    el('ol',{},o.zip?el('li',{},'Estrai lo zip e copia i file nella cartella della livrea, in UserData/Liveries.'):null,
+      el('li',{},'Apri lo showroom e scegli la stessa auto del template'+(S.tplName?` (${S.tplName.replace(/\.psd$/i,'')})`:'')+'.'),
+      el('li',{},'Seleziona la livrea personalizzata.'),
+      el('li',{},'Premi RELOAD: lo showroom rilegge i file. Dopo ogni nuova esportazione basta premere di nuovo RELOAD.')),
+    el('p',{class:'note'},'Ricorda di salvare anche il progetto (Ctrl+S) per poterlo modificare in futuro.')],[['Ho capito',true,true]]);
+}
+function canvasURL(c){return c.toDataURL('image/png');}
+function imgURL(im){if(im.url)return im.url;if(im.img instanceof HTMLCanvasElement)return canvasURL(im.img);const c=mk(im.w,im.h);c.getContext('2d').drawImage(im.img,0,0);return canvasURL(c);}
+/* progetto con nome e cartella: in Chrome/Edge scegli dove salvarlo e poi Ctrl+S lo riscrive lì; altrove chiede il nome e lo scarica */
+let projHandle=null;const SAVE_FS='showSaveFilePicker' in window&&(()=>{try{return window.top===window.self;}catch(e){return false;}})();
+const safeName=n=>(n||'livrea').replace(/[\\/:*?"<>|]+/g,'-').replace(/\.json$/i,'').trim()||'livrea';
+function projTitle(){document.title=(projDirty&&(wireCv||S.layers.length)?'● ':'')+(S.projName?S.projName+' · ':'')+'Livery Lab per LMU';const d=$('#docinfo');if(d&&S.projName)d.textContent=S.projName+(S.tplName?' · '+S.tplName:'');}
+async function projJSON(){
+  busy('Preparo il progetto…');await tick();
+  const imgs={};for(const id in images){const im=images[id];if(!usesImg(id))continue;imgs[id]={url:imgURL(im),name:im.name};}
+  const proj={app:'liverylab',v:2,docId,state:JSON.parse(snapshot()),images:imgs,wire:wireCv?canvasURL(wireCv):null,wireDark,region:regionCv?canvasURL(regionCv):null,tpl:S.tplName,
+    ref:REF.src&&REF.blob?{url:await blobToURL(REF.blob),name:REF.name,cfg:{on:REF.on,op:REF.op,above:REF.above,dx:REF.dx,dy:REF.dy,sc:REF.sc}}:null};
+  busy(null);return JSON.stringify(proj);
+}
+async function saveProject(asNew){
+  try{
+    if(SAVE_FS){
+      if(asNew||!projHandle){
+        const sug=safeName(S.projName||(S.tplName?S.tplName.replace(/\.psd$/i,'').replace(/^Template_/,''):'livrea'))+'.json';
+        const opt={suggestedName:sug,id:'lmu-proj',types:[{description:'Progetto Livery Lab',accept:{'application/json':['.json']}}]};if(projHandle)opt.startIn=projHandle;
+        projHandle=await window.showSaveFilePicker(opt);}
+      const data=await projJSON(),w=await projHandle.createWritable();await w.write(data);await w.close();
+      S.projName=projHandle.name.replace(/\.json$/i,'');dirty=false;projClean(true);buildDoc();scheduleSave();toast('Salvato: '+projHandle.name+(asNew?'':' (Ctrl+S per salvare di nuovo qui)'));return;}
+    if(asNew||!S.projName){const v=prompt('Nome del progetto',S.projName||'livrea');if(!v)return;S.projName=safeName(v);}
+    const data=await projJSON();await saveFile(safeName(S.projName)+'.json',data);dirty=false;projClean(true);buildDoc();scheduleSave();
+  }catch(e){busy(null);if(e&&e.name==='AbortError')return;toast('Non riesco a salvare: '+(e&&e.message||e),5000);}
+}
+$('#bSave').onclick=()=>saveProject(false);
+$('#bSaveAs').onclick=()=>saveProject(true);
+$('#bOpen').onclick=async()=>{
+  if('showOpenFilePicker' in window&&SAVE_FS){try{const [h]=await window.showOpenFilePicker({id:'lmu-proj',types:[{description:'Progetto Livery Lab',accept:{'application/json':['.json']}}]});await openProject(await h.getFile(),h);}catch(e){if(e&&e.name!=='AbortError')toast('Non riesco ad aprire: '+e.message,5000);}return;}
+  $('#fProj').click();};
+$('#fProj').addEventListener('change',async()=>{const f=$('#fProj').files[0];$('#fProj').value='';if(f)await openProject(f,null);});
+async function openProject(f,handle){
+  try{
+    busy('Apro il progetto…');await tick();const o=JSON.parse(await f.text());if(o.app!=='liverylab')throw new Error('non è un progetto di Livery Lab');
+    await flushSave();if(o.docId)docId=o.docId;else newDoc();thumbAt=0;
+    for(const k in images)delete images[k];
+    for(const id in o.images){const img=await loadImg(o.images[id].url);images[id]={img,w:img.naturalWidth,h:img.naturalHeight,url:o.images[id].url,name:o.images[id].name};}
+    regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
+    if(o.region){const i=await loadImg(o.region),c=mk(N,N);c.getContext('2d').drawImage(i,0,0,N,N);regionCv=c;}
+    if(o.wire){const i=await loadImg(o.wire),c=mk(N,N),x=c.getContext('2d');x.drawImage(i,0,0,N,N);wireCv=c;wireDark=o.wireDark!==false;await analyze(x.getImageData(0,0,N,N).data);}
+    if(o.ref&&o.ref.url){const b=urlToBlob(o.ref.url);await loadRef(new File([b],o.ref.name||'riferimento.png',{type:b.type}),o.ref.cfg||{});}
+    S.tplName=o.tpl||null;restore(JSON.stringify(o.state));S.projName=(f.name||'').replace(/\.json$/i,'')||S.projName;projHandle=handle||null;
+    hist=[];histPos=-1;commit();dirty=false;projClean(true);fit();busy(null);projTitle();guideAfterTemplate();toast('Progetto aperto: '+S.projName+(handle?' (Ctrl+S salva qui)':''));
+  }catch(e){busy(null);toast('File non valido: '+e.message,5000);}
+}
+$('#bUndo').onclick=undo;$('#bRedo').onclick=redo;
+function uiLabel(){$('#bUi').textContent='Aspetto: '+(document.documentElement.dataset.ui==='neo'?'futuristico':'classico');}
+$('#bUi').onclick=()=>{const neo=document.documentElement.dataset.ui!=='neo';if(neo)document.documentElement.dataset.ui='neo';else delete document.documentElement.dataset.ui;
+  try{localStorage.setItem('liverylab-ui',neo?'neo':'classic');}catch(e){}uiLabel();requestDraw(true);};uiLabel();
+// il menu File si chiude dopo una scelta o cliccando fuori
+document.querySelectorAll('#fileMenu .mi').forEach(b=>b.addEventListener('click',()=>{$('#fileMenu').open=false;}));
+document.addEventListener('pointerdown',e=>{const m=$('#fileMenu');if(m.open&&!m.contains(e.target))m.open=false;});
+
