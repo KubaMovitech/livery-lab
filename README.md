@@ -35,6 +35,7 @@ Editor di livree per **Le Mans Ultimate** che gira nel browser. Pensato per chi 
 - **Contorno con un materiale suo** (pezzi, forme, testi): per esempio forma in vernice e bordo in cromo.
 - **Lavori recenti:** salvataggio automatico nel browser degli ultimi 12 lavori, con miniature, e indicatore delle modifiche non ancora salvate nel progetto (JSON).
 - **Controllo prima dell'export:** template, file creati con anteprima e cartella di destinazione; poi il promemoria per lo showroom (RELOAD).
+- **Interfaccia sempre reattiva:** lettura del PSD, analisi dei pezzi, riempimenti e conversione in TGA girano in un Web Worker incluso nel file stesso; in Documento → Prestazioni i tempi misurati.
 - **Export per LMU:** `customskin.tga` e `customskin_region.tga` (TGA 32 bit non compressi, 4096 × 4096).
 
 ## Come si usa
