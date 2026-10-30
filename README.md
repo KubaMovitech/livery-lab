@@ -66,9 +66,17 @@ L'app si distribuisce come **un solo file**, `index.html`, ma il codice sta divi
 python3 tools/build.py           # ricompone index.html dai moduli
 python3 tools/build.py --check   # controlla che index.html corrisponda a src/
 python3 tools/build.py --lint    # in più controlla la sintassi di ogni modulo (serve node)
+npm install && npm run check     # tutto quanto sopra più l'isolamento dei moduli di src/modules/
 ```
 
 `src/index.html` è il guscio della pagina: ogni riga `@@include percorso` viene sostituita dal file corrispondente. I moduli di `src/app/` stanno tutti dentro la stessa funzione della pagina e condividono lo scope: l'ordine degli `@@include` è l'ordine di esecuzione.
+
+**Moduli isolati** (`src/modules/`): `render.js` (disegno della livrea e della mappa materiali) ed `export.js` (TGA, zip, PNG, controllo prima dell'export) stanno fuori da quella funzione e vedono solo quello che ricevono:
+
+- `use`: costanti e funzioni degli altri moduli, elencate in cima al modulo;
+- `live`: le variabili condivise che altri moduli cambiano (per esempio `live.wireCv`, `live.LAB`), lette e scritte attraverso il collegamento.
+
+Il collegamento sta nel file con lo stesso nome in `src/app/`: passa le dipendenze e prende quello che il modulo offre agli altri. `npm run check` (dopo `npm install`) controlla con `tools/check-modules.js` che un modulo isolato non usi nomi che non riceve: una dipendenza dimenticata diventa un errore prima della release, non durante l'uso.
 
 Prova rapida su un template vero (serve Playwright; i template stanno nella cartella di LMU): `node tools/smoke.js "<…>/Template_….psd"` apre il template, applica un concept, esporta i due TGA e stampa i tempi.
 
@@ -76,8 +84,9 @@ Prova rapida su un template vero (serve Playwright; i template stanno nella cart
 |---|---|
 | `src/css/` | `base.css` (aspetto classico e struttura), `neo.css` (aspetto futuristico), `v23.css` (guida, lavori recenti, controllo export) |
 | `src/markup/` | `body.html`: barra in alto, strumenti, tela, pannelli, finestre |
+| `src/modules/` | moduli isolati: `render.js`, `export.js` |
 | `src/worker/` | codice del **Web Worker**: lettura PSD (`psd.js`), pezzi e pannelli (`analyze.js`), maschere dei riempimenti (`fill.js`), TGA e materiali (`tga.js`), messaggi (`main.js`). Nella pagina sta in uno script di testo da cui nasce il worker; senza worker lo stesso codice gira nel thread principale |
-| `src/app/` | `core.js` (utilità, tempi, client del worker), `state.js` (stato e materiali), `patterns.js` (trame), `geometry.js`, `analysis.js`, `render.js` (disegno e mappa materiali), `layers.js`, `input.js` (mouse e tastiera), `tools.js`, `import-psd.js`, `library.js` (loghi, palette, font), `concepts.js`, `graphics.js`, `panels.js` (Livelli, Proprietà, Documento), `export.js` (TGA, zip, progetto, controllo export), `game-folders.js` (cartelle di LMU), `autosave.js` (lavori recenti), `guide.js`, `updates.js` (versione, novità, aggiornamenti), `boot.js` (avvio) |
+| `src/app/` | `core.js` (utilità, tempi, client del worker), `state.js` (stato e materiali), `patterns.js` (trame), `geometry.js`, `analysis.js`, `render.js` ed `export.js` (collegamenti ai moduli isolati), `layers.js`, `input.js` (mouse e tastiera), `tools.js`, `import-psd.js`, `library.js` (loghi, palette, font), `concepts.js`, `graphics.js`, `panels.js` (Livelli, Proprietà, Documento), `project.js` (salva e apri progetto), `menus.js`, `game-folders.js` (cartelle di LMU), `autosave.js` (lavori recenti), `guide.js`, `updates.js` (versione, novità, aggiornamenti), `boot.js` (avvio) |
 
 ## Cosa non c'è nel repository
 
