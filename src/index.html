@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="it">
+<!-- Generato da tools/build.py a partire da src/: non modificare questo file, modifica i moduli in src/ e ricostruisci. -->
+<script>/* aspetto: futuristico (predefinito) o classico */try{if(localStorage.getItem("liverylab-ui")!=="classic")document.documentElement.dataset.ui="neo";}catch(e){document.documentElement.dataset.ui="neo";}</script>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Livery Lab per LMU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Oswald:wght@500&family=Playfair+Display:ital,wght@1,600&family=Pacifico&family=Rajdhani:wght@500;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+<style>
+@@include css/base.css
+@@include css/neo.css
+@@include css/v23.css
+</style>
+</head>
+<body>
+@@include markup/body.html
+
+<!-- elaborazioni pesanti (PSD, pezzi, riempimenti, TGA): girano in un Web Worker creato da questo testo, così l'app resta un solo file.
+     Se il browser non permette il worker, lo stesso codice gira nel thread principale. -->
+<script id="wkSrc" type="text/plain">
+@@include worker/00-common.js
+@@include worker/psd.js
+@@include worker/analyze.js
+@@include worker/fill.js
+@@include worker/tga.js
+@@include worker/main.js
+</script>
+<script>
+(function(){
+"use strict";
+@@include app/core.js
+@@include app/state.js
+@@include app/patterns.js
+@@include app/geometry.js
+@@include app/analysis.js
+@@include app/render.js
+@@include app/layers.js
+@@include app/input.js
+@@include app/tools.js
+@@include app/import-psd.js
+@@include app/library.js
+@@include app/concepts.js
+@@include app/graphics.js
+@@include app/panels.js
+@@include app/export.js
+@@include app/game-folders.js
+@@include app/autosave.js
+@@include app/guide.js
+@@include app/updates.js
+@@include app/boot.js
+})();
+</script>
+</body>
+</html>

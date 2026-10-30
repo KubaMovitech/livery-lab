@@ -56,7 +56,28 @@ Con altri browser l'editor funziona lo stesso, ma esporta uno zip con i due file
 
 Il numero di versione in alto apre **Novità e aggiornamenti**. L'app controlla a ogni avvio e ogni ora il file `version.json` di questo repository: se c'è una versione nuova, il pulsante diventa **Aggiorna**. Aperta come file in Chrome o Edge, sostituisce `index.html` con un clic (la prima volta chiede quale file); dalla versione pubblicata basta ricaricare. Il lavoro resta salvato nel browser.
 
-Per pubblicare una versione: aggiorna `APP_VERSION` e `CHANGELOG` in `index.html`, poi `sh release.sh <versione> "nota" …` riscrive `version.json` con lo SHA-256 di `index.html`. I due file vanno committati insieme.
+Per pubblicare una versione: aggiorna `APP_VERSION` e `CHANGELOG` in `src/app/updates.js`, ricostruisci `index.html` (vedi sotto), poi `sh release.sh <versione> "nota" …` controlla che `index.html` sia aggiornato e riscrive `version.json` con il suo SHA-256. I due file vanno committati insieme.
+
+## Sviluppo
+
+L'app si distribuisce come **un solo file**, `index.html`, ma il codice sta diviso in moduli in `src/`. `index.html` è generato: non va modificato a mano.
+
+```sh
+python3 tools/build.py           # ricompone index.html dai moduli
+python3 tools/build.py --check   # controlla che index.html corrisponda a src/
+python3 tools/build.py --lint    # in più controlla la sintassi di ogni modulo (serve node)
+```
+
+`src/index.html` è il guscio della pagina: ogni riga `@@include percorso` viene sostituita dal file corrispondente. I moduli di `src/app/` stanno tutti dentro la stessa funzione della pagina e condividono lo scope: l'ordine degli `@@include` è l'ordine di esecuzione.
+
+Prova rapida su un template vero (serve Playwright; i template stanno nella cartella di LMU): `node tools/smoke.js "<…>/Template_….psd"` apre il template, applica un concept, esporta i due TGA e stampa i tempi.
+
+| Cartella | Contenuto |
+|---|---|
+| `src/css/` | `base.css` (aspetto classico e struttura), `neo.css` (aspetto futuristico), `v23.css` (guida, lavori recenti, controllo export) |
+| `src/markup/` | `body.html`: barra in alto, strumenti, tela, pannelli, finestre |
+| `src/worker/` | codice del **Web Worker**: lettura PSD (`psd.js`), pezzi e pannelli (`analyze.js`), maschere dei riempimenti (`fill.js`), TGA e materiali (`tga.js`), messaggi (`main.js`). Nella pagina sta in uno script di testo da cui nasce il worker; senza worker lo stesso codice gira nel thread principale |
+| `src/app/` | `core.js` (utilità, tempi, client del worker), `state.js` (stato e materiali), `patterns.js` (trame), `geometry.js`, `analysis.js`, `render.js` (disegno e mappa materiali), `layers.js`, `input.js` (mouse e tastiera), `tools.js`, `import-psd.js`, `library.js` (loghi, palette, font), `concepts.js`, `graphics.js`, `panels.js` (Livelli, Proprietà, Documento), `export.js` (TGA, zip, progetto, controllo export), `game-folders.js` (cartelle di LMU), `autosave.js` (lavori recenti), `guide.js`, `updates.js` (versione, novità, aggiornamenti), `boot.js` (avvio) |
 
 ## Cosa non c'è nel repository
 

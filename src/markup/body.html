@@ -1,0 +1,92 @@
+<div class="app">
+  <header class="top">
+    <div class="brand">Livery Lab<small>per Le Mans Ultimate</small></div>
+    <button class="verchip" id="verChip" title="Novità e aggiornamenti">v</button>
+    <button class="btn pri" id="bTpl" title="Apri il template PSD dell'auto (va bene anche un PNG del wireframe)">Apri template</button>
+    <input type="file" id="fTpl" accept=".psd,image/png,image/jpeg,.tga" hidden>
+    <button class="btn gamebtn" id="bTplGame" hidden title="Scegli un template direttamente dalla cartella di LMU">Template dal gioco</button>
+    <button class="btn" id="bUndo" title="Annulla (Ctrl+Z)">Annulla</button>
+    <button class="btn" id="bRedo" title="Ripristina (Ctrl+Shift+Z)">Ripristina</button>
+    <button class="btn" id="bGuide" title="Mostra o nasconde la guida passo passo" aria-pressed="false">Guida</button>
+    <div class="sp"></div>
+    <details class="menu" id="fileMenu"><summary class="btn">File ▾</summary>
+      <div class="mpop" role="menu">
+        <button class="mi" id="bSave" role="menuitem">Salva progetto <kbd>Ctrl+S</kbd></button>
+        <button class="mi" id="bSaveAs" role="menuitem">Salva con nome… <kbd>Ctrl+Maiusc+S</kbd></button>
+        <button class="mi" id="bOpen" role="menuitem">Apri progetto…</button>
+        <button class="mi" id="bRecent" role="menuitem">Lavori recenti…</button>
+        <hr>
+        <button class="mi" id="bPng" role="menuitem">Esporta PNG</button>
+        <button class="mi" id="bLmu" role="menuitem" title="Zip con customskin.tga e customskin_region.tga">Esporta zip per LMU</button>
+        <hr>
+        <button class="mi" id="bUi" role="menuitem">Aspetto: futuristico</button>
+      </div>
+    </details>
+    <input type="file" id="fProj" accept=".json,application/json" hidden>
+    <button class="btn pri gamebtn" id="bToGame" hidden title="Scrive customskin.tga e customskin_region.tga nella cartella della livrea">Esporta nel gioco</button>
+  </header>
+
+  <nav class="tools" aria-label="Strumenti" id="tools"></nav>
+
+  <main class="stagewrap" id="stage">
+    <canvas id="view" aria-label="Tela della livrea"></canvas>
+    <div class="float opts" id="opts"></div>
+    <div class="float empty" id="empty">
+      <h2>La tua prima livrea in 5 passi</h2>
+      <ol class="path" aria-label="Percorso"><li class="on">Scegli l’auto</li><li>Apri il template</li><li>Scegli i colori</li><li>Personalizza</li><li>Esporta</li></ol>
+      <div class="estep"><b>1 · Scegli l’auto</b><p class="note" style="margin:0">In Le Mans Ultimate ogni auto ha il suo template PSD, nella cartella <b style="display:inline">Support/LiveryTemplates</b> del gioco (una cartella per auto).</p></div>
+      <div class="estep"><b>2 · Apri il template</b><p class="note" style="margin:0 0 8px">L’editor prende da solo wireframe, pezzi, adesivi ufficiali e mappa dei materiali. Puoi anche trascinare il file qui.</p>
+      <button class="btn pri" id="bTpl2">Apri template PSD</button>
+      <button class="btn gamebtn" id="bTpl3" hidden style="margin-left:6px">Scegli dal gioco</button></div>
+      <p class="note" style="margin-top:10px">Poi la guida in basso a sinistra ti accompagna: colori, loghi e numeri, esportazione nel gioco.</p>
+      <div id="resumeBox" hidden style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><h3 style="margin:0">Lavori recenti</h3><p class="note" id="resumeTxt" style="margin:2px 0 0">Salvati da soli nel browser mentre lavori.</p><div class="recent-grid" id="recentGrid"></div></div>
+    </div>
+    <div class="float guide" id="guide" hidden role="region" aria-label="Guida passo passo"></div>
+    <div class="float busy" id="busy" hidden></div>
+    <div class="float picker" id="picker" hidden role="dialog" aria-label="Template nel gioco">
+      <div class="row" style="justify-content:space-between;margin-top:0"><h3>Template nel gioco</h3><button class="ib" id="pkClose" aria-label="Chiudi">✕</button></div>
+      <div id="pkList"></div>
+    </div>
+    <div class="float hud">
+      <button class="ib" id="zOut" title="Riduci" aria-label="Riduci">−</button><span id="zVal">100%</span><button class="ib" id="zIn" title="Ingrandisci" aria-label="Ingrandisci">+</button>
+      <button class="btn sm" id="zFit">Adatta</button>
+      <div class="seg" role="group" aria-label="Vista"><button id="vLiv" aria-pressed="true">Livrea</button><button id="vMat" aria-pressed="false">Materiali</button></div>
+      <button class="btn sm" id="bWire" aria-pressed="true">Linee</button>
+      <button class="btn sm" id="bSnap" aria-pressed="true" title="Calamita: aggancia i livelli al centro, all’asse e agli altri livelli mentre li sposti (tieni Ctrl per sganciare)">Calamita</button>
+      <button class="btn sm" id="bPrev" aria-pressed="false" title="Anteprima come in gioco: senza linee, guide e selezione (G)">Anteprima</button>
+      <button class="btn sm" id="bHelp" aria-pressed="true" title="Mostra o nascondi i suggerimenti">?</button>
+      <div class="legend" id="legend" hidden></div>
+    </div>
+    <div class="float hint" id="hint"></div>
+  </main>
+
+  <aside class="side">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabL" aria-selected="true">Livelli</button>
+      <button class="tab" role="tab" id="tabP" aria-selected="false">Proprietà</button>
+      <button class="tab" role="tab" id="tabB" aria-selected="false">Libreria</button>
+      <button class="tab" role="tab" id="tabD" aria-selected="false">Documento</button>
+    </div>
+    <div class="pane" id="paneL"></div>
+    <div class="pane" id="paneP" hidden></div>
+    <div class="pane" id="paneB" hidden></div>
+    <div class="pane" id="paneD" hidden></div>
+  </aside>
+
+  <footer class="bot">
+    <span id="status">Pronto</span>
+    <span class="sp"></span>
+    <span id="unsaved" hidden role="button" tabindex="0"></span>
+    <span id="saved"></span>
+    <span id="docinfo">Tela 4096 × 4096 px</span>
+  </footer>
+</div>
+<div class="modal" id="mNews" hidden role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+  <div class="mbox">
+    <div class="row" style="justify-content:space-between;margin:0 0 6px"><h2 id="newsTitle">Novità e aggiornamenti</h2><button class="btn sm" id="newsClose">Chiudi</button></div>
+    <div id="newsJust"></div>
+    <div class="ngrid"><div><h3>Aggiornamenti</h3><div id="updBox"></div></div><div><h3>Cosa è cambiato</h3><div id="newsList" class="newslist"></div></div></div>
+  </div>
+</div>
+<input type="file" id="fImg" accept="image/*" multiple hidden>
+<input type="file" id="fPhoto" accept="image/*" hidden>
