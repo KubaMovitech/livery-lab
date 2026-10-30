@@ -409,6 +409,244 @@ details.sec.adv>summary i{font-style:normal;font-size:11.5px;color:var(--accent)
 <input type="file" id="fImg" accept="image/*" multiple hidden>
 <input type="file" id="fPhoto" accept="image/*" hidden>
 
+<!-- elaborazioni pesanti (PSD, pezzi, riempimenti, TGA): girano in un Web Worker creato da questo testo, così l'app resta un solo file.
+     Se il browser non permette il worker, lo stesso codice gira nel thread principale. -->
+<script id="wkSrc" type="text/plain">
+"use strict";
+const N=4096,NN=N*N;
+function readPSD(buf){
+  const dv=new DataView(buf),u8=new Uint8Array(buf);let o=0;
+  const U8=()=>u8[o++],U16=()=>{const v=dv.getUint16(o);o+=2;return v;},I16=()=>{const v=dv.getInt16(o);o+=2;return v;},U32=()=>{const v=dv.getUint32(o);o+=4;return v;},I32=()=>{const v=dv.getInt32(o);o+=4;return v;};
+  const sig=String.fromCharCode(...u8.slice(0,4));if(sig!=='8BPS')throw new Error('non è un file PSD');
+  o=4;const ver=U16();if(ver!==1)throw new Error('i file PSB (grandi) non sono supportati, salva come PSD');
+  o=12;const ch=U16(),H=U32(),W=U32(),depth=U16(),mode=U16();
+  if(depth!==8)throw new Error(`il PSD è a ${depth} bit: salvalo a 8 bit per canale`);
+  if(mode!==3)throw new Error('il PSD deve essere in modalità RGB');
+  {const cm=U32();o+=cm;}{const irl=U32();o+=irl;}
+  const lmLen=U32(),lmEnd=o+lmLen;const liLen=U32();let cnt=Math.abs(I16());
+  const L=[];
+  for(let i=0;i<cnt;i++){
+    const top=I32(),left=I32(),bottom=I32(),right=I32(),nch=U16(),chans=[];
+    for(let k=0;k<nch;k++)chans.push({id:I16(),len:U32()});
+    o+=4;const blend=String.fromCharCode(u8[o],u8[o+1],u8[o+2],u8[o+3]);o+=4;
+    const opacity=U8(),clip=U8(),flags=U8();o+=1;
+    const exLen=U32(),exEnd=o+exLen;
+    const mLen=U32();let mask=null;if(mLen>=20){const mt=dv.getInt32(o),ml=dv.getInt32(o+4),mb=dv.getInt32(o+8),mr=dv.getInt32(o+12);mask={top:mt,left:ml,bottom:mb,right:mr,dc:u8[o+16],flags:u8[o+17]};}o+=mLen;
+    {const brl=U32();o+=brl;}
+    const nl=u8[o];let name=new TextDecoder('latin1').decode(u8.slice(o+1,o+1+nl));o+=Math.ceil((nl+1)/4)*4;
+    let sect=null,soco=null,adjust=false;
+    while(o+12<=exEnd){
+      const key=String.fromCharCode(u8[o+4],u8[o+5],u8[o+6],u8[o+7]),len=dv.getUint32(o+8),d=o+12;
+      if(key==='luni'){const n=dv.getUint32(d);let s='';for(let k=0;k<n;k++)s+=String.fromCharCode(dv.getUint16(d+4+2*k));name=s.replace(/\0+$/,'');}
+      else if(key==='lsct'||key==='lsdk')sect=dv.getUint32(d);
+      else if(key==='SoCo'){const blk=u8.subarray(d,d+len),find=t=>{const tt=[...t].map(c=>c.charCodeAt(0));outer:for(let j=0;j<blk.length-tt.length;j++){for(let q=0;q<tt.length;q++)if(blk[j+q]!==tt[q])continue outer;return j;}return -1;};
+        const rd=k=>{const j=find(k);return j<0?0:Math.round(new DataView(buf,d+j+8,8).getFloat64(0));};soco=[rd('Rd  doub'),rd('Grn doub'),rd('Bl  doub')];}
+      else if(['levl','curv','hue2','brit','blnc','vibA','selc','mixr','grdm','phfl','expA','post','thrs','nvrt','clrL'].includes(key))adjust=true;
+      o=d+len;
+    }
+    o=exEnd;
+    L.push({name,top,left,bottom,right,chans,blend,opacity,clip,hidden:!!(flags&2),mask,sect,soco,adjust,data:{}});
+  }
+  for(const l of L){
+    for(const c of l.chans){
+      const start=o,comp=dv.getUint16(o);
+      let w,h;if(c.id===-2&&l.mask){w=l.mask.right-l.mask.left;h=l.mask.bottom-l.mask.top;}else{w=l.right-l.left;h=l.bottom-l.top;}
+      if(w>0&&h>0&&c.id>=-2){
+        if(comp===0)l.data[c.id]=u8.slice(o+2,o+2+w*h);
+        else if(comp===1){const out=new Uint8Array(w*h);let p=o+2+2*h;
+          for(let y=0;y<h;y++){const end=p+dv.getUint16(o+2+2*y);let q=y*w;const qe=q+w;
+            while(p<end){const n=u8[p++];if(n<128){const m=n+1;out.set(u8.subarray(p,p+Math.min(m,qe-q)),q);q+=m;p+=m;}else if(n>128){const m=257-n,v=u8[p++];out.fill(v,q,Math.min(q+m,qe));q+=m;}}}
+          l.data[c.id]=out;}
+        else l.unsupported=true;
+      }
+      o=start+c.len;
+    }
+  }
+  // gruppi: i record vanno dal basso verso l'alto; risalgo dall'alto per costruire i percorsi
+  const stack=[],groups={};
+  for(let i=L.length-1;i>=0;i--){const l=L[i];
+    if(l.sect===1||l.sect===2){l.isGroup=true;l.path=stack.map(g=>g.name);l.groupHidden=stack.some(g=>g.hidden);
+      const g={id:'g'+i,name:l.name,hidden:l.hidden,parent:stack.length?stack[stack.length-1].id:null};groups[g.id]=g;stack.push(g);continue;}
+    if(l.sect===3){l.isDivider=true;stack.pop();continue;}
+    l.path=stack.map(g=>g.name);l.gids=stack.map(g=>g.id);l.groupHidden=stack.some(g=>g.hidden);}
+  return{W,H,layers:L,groups};
+}
+function layerRGBA(l){
+  const w=l.right-l.left,h=l.bottom-l.top;if(w<=0||h<=0||!l.data[0])return null;
+  const r=l.data[0],g=l.data[1]||r,b=l.data[2]||r,a=l.data[-1],m=l.data[-2],mk_=l.mask,out=new Uint8ClampedArray(w*h*4);
+  const useMask=mk_&&!(mk_.flags&2),mw=mk_?mk_.right-mk_.left:0;
+  if(!useMask){const n=w*h,o32=new Uint32Array(out.buffer);
+    if(a){for(let i=0;i<n;i++)o32[i]=(a[i]<<24|b[i]<<16|g[i]<<8|r[i])>>>0;}else{for(let i=0;i<n;i++)o32[i]=(0xFF000000|b[i]<<16|g[i]<<8|r[i])>>>0;}
+    return{w,h,rgba:out};}
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x,q=i*4;out[q]=r[i];out[q+1]=g[i];out[q+2]=b[i];let al=a?a[i]:255;
+    if(useMask){const ax=x+l.left,ay=y+l.top;let mv=mk_.dc;if(m&&ax>=mk_.left&&ax<mk_.right&&ay>=mk_.top&&ay<mk_.bottom)mv=m[(ay-mk_.top)*mw+(ax-mk_.left)];al=al*mv/255;}
+    out[q+3]=al;}
+  return{w,h,rgba:out};
+}
+function baseColorOf(l){
+  const w=l.right-l.left,h=l.bottom-l.top;
+  if(l.left>0||l.top>0||l.right<N*.99||l.bottom<N*.99)return null;
+  if(l.soco)return l.soco;
+  const r=l.data[0],g=l.data[1]||r,b=l.data[2]||r,a=l.data[-1];if(!r||w<=0||h<=0)return null;
+  const n=w*h,c=[r[0],g[0],b[0]];
+  for(let i=0;i<n;i+=1013){if(Math.abs(r[i]-c[0])>2||Math.abs(g[i]-c[1])>2||Math.abs(b[i]-c[2])>2||(a&&a[i]<250))return null;}
+  return c;
+}
+/* analisi del wireframe: pezzi (isole) e pannelli. Le etichette restano anche qui per calcolare i riempimenti */
+let WL=null;   // {isl,pan,ver}
+function labelTemplate(rgba,prog){
+  const t0=performance.now();
+  let sum=0;for(let i=0;i<NN*4;i+=4*97)sum+=(rgba[i]+rgba[i+1]+rgba[i+2]);
+  const dark=sum/(NN/97*3)<110;
+  const st=new Uint8Array(NN),grn=new Uint8Array(NN);
+  for(let i=0,p=0;i<NN;i++,p+=4){
+    const r=rgba[p],g=rgba[p+1],b=rgba[p+2];
+    if(dark){const m=r>g?(r>b?r:b):(g>b?g:b);if(m>40)st[i]=1;}else{if(r+g+b<540)st[i]=1;}
+    if(g>r+30&&g>b+30&&g>60)grn[i]=1;
+  }
+  // se quasi tutte le linee sono verdi (es. Ferrari 499P) il verde non segna i pannelli ma ogni triangolo: lo ignoro
+  let nl=0,ng=0;for(let i=0;i<NN;i+=7){if(st[i]===1){nl++;if(grn[i])ng++;}}
+  const greenSeams=!(nl&&ng/nl>0.5);if(!greenSeams)grn.fill(0);
+  const Q=new Int32Array(NN);
+  // 1) sfondo: componenti 4-connesse; quelle che toccano il bordo (o enormi) sono "fuori"
+  for(let s=0;s<NN;s++){
+    if(st[s]!==0)continue;
+    let h=0,t=0,border=false;Q[t++]=s;st[s]=4;
+    while(h<t){const i=Q[h++],x=i&4095,y=i>>12;
+      if(x===0||y===0||x===N-1||y===N-1)border=true;
+      if(x>0&&st[i-1]===0){st[i-1]=4;Q[t++]=i-1;}
+      if(x<N-1&&st[i+1]===0){st[i+1]=4;Q[t++]=i+1;}
+      if(y>0&&st[i-N]===0){st[i-N]=4;Q[t++]=i-N;}
+      if(y<N-1&&st[i+N]===0){st[i+N]=4;Q[t++]=i+N;}}
+    const v=(border||t>200000)?2:3;for(let k=0;k<t;k++)st[Q[k]]=v;
+  }
+  prog('Separo i pezzi…');
+  // 2) pezzi (isole) 8-connessi
+  const isl=new Uint16Array(NN),ib=[null];let ni=0;
+  for(let s=0;s<NN;s++){
+    if(isl[s]||!(st[s]===1||st[s]===3))continue;if(ni>=65534)break;ni++;
+    let h=0,t=0,x0=N,y0=N,x1=0,y1=0;Q[t++]=s;isl[s]=ni;
+    while(h<t){const i=Q[h++],x=i&4095,y=i>>12;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+      for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=N)continue;for(let dx=-1;dx<=1;dx++){const xx=x+dx;if(xx<0||xx>=N)continue;const j=(yy<<12)|xx;if(!isl[j]&&(st[j]===1||st[j]===3)){isl[j]=ni;Q[t++]=j;}}}}
+    ib.push([x0,y0,x1,y1]);
+  }
+  prog('Trovo i pannelli…');
+  // 3) pannelli: dentro i pezzi, separati dalle linee verdi
+  const pan=new Uint16Array(NN),pb=[null];let np=0;
+  for(let s=0;s<NN;s++){
+    if(pan[s]||!isl[s]||grn[s])continue;if(np>=65534)break;np++;
+    let h=0,t=0,x0=N,y0=N,x1=0,y1=0;Q[t++]=s;pan[s]=np;
+    while(h<t){const i=Q[h++],x=i&4095,y=i>>12;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+      if(x>0&&!pan[i-1]&&isl[i-1]&&!grn[i-1]){pan[i-1]=np;Q[t++]=i-1;}
+      if(x<N-1&&!pan[i+1]&&isl[i+1]&&!grn[i+1]){pan[i+1]=np;Q[t++]=i+1;}
+      if(y>0&&!pan[i-N]&&isl[i-N]&&!grn[i-N]){pan[i-N]=np;Q[t++]=i-N;}
+      if(y<N-1&&!pan[i+N]&&isl[i+N]&&!grn[i+N]){pan[i+N]=np;Q[t++]=i+N;}}
+    pb.push([x0,y0,x1,y1]);
+  }
+  // pannelli minuscoli (frammenti tra le linee, es. Cadillac): li svuoto e li faccio assorbire dal pannello vicino
+  // (solo se nello stesso pezzo c'è un pannello vero che li può assorbire)
+  const MINP=300,area=new Uint32Array(np+1),pIsl=new Uint16Array(np+1);for(let i=0;i<NN;i++){const v=pan[i];if(v){area[v]++;pIsl[v]=isl[i];}}
+  const iMax=new Uint32Array(ni+1);for(let k=1;k<=np;k++)if(area[k]>iMax[pIsl[k]])iMax[pIsl[k]]=area[k];
+  const drop=new Uint8Array(np+1);let small=0;for(let k=1;k<=np;k++)if(area[k]<MINP&&iMax[pIsl[k]]>=MINP){drop[k]=1;small++;}
+  if(small)for(let i=0;i<NN;i++){if(drop[pan[i]])pan[i]=0;}
+  // le linee verdi (e i frammenti) vanno al pannello vicino dello stesso pezzo
+  // (a onde: si parte dai pixel liberi che toccano un pannello e si avanza di un pixel per volta, al massimo 60)
+  {const mark=new Uint8Array(NN);let cur=new Int32Array(1<<16),nc=0;
+    const push=(i)=>{if(nc>=cur.length){const t=new Int32Array(cur.length*2);t.set(cur);cur=t;}cur[nc++]=i;};
+    const nb=(i)=>{const x=i&4095,y=i>>12,s=isl[i];
+      if(x>0&&pan[i-1]&&isl[i-1]===s)return pan[i-1];if(x<N-1&&pan[i+1]&&isl[i+1]===s)return pan[i+1];
+      if(y>0&&pan[i-N]&&isl[i-N]===s)return pan[i-N];if(y<N-1&&pan[i+N]&&isl[i+N]===s)return pan[i+N];return 0;};
+    for(let i=0;i<NN;i++)if(!pan[i]&&isl[i]&&nb(i)){mark[i]=1;push(i);}
+    for(let pass=0;pass<60&&nc;pass++){
+      const list=cur.slice(0,nc),val=new Uint16Array(nc);nc=0;
+      for(let k=0;k<list.length;k++)val[k]=nb(list[k]);   // prima leggo tutti i vicini, poi assegno: avanzano tutti insieme
+      for(let k=0;k<list.length;k++){const i=list[k],v=val[k];if(!v)continue;pan[i]=v;const x=i&4095,y=i>>12,b=pb[v];if(x<b[0])b[0]=x;if(x>b[2])b[2]=x;if(y<b[1])b[1]=y;if(y>b[3])b[3]=y;}
+      for(let k=0;k<list.length;k++){const i=list[k],x=i&4095,y=i>>12,s=isl[i];
+        if(x>0&&!pan[i-1]&&!mark[i-1]&&isl[i-1]===s){mark[i-1]=1;push(i-1);}if(x<N-1&&!pan[i+1]&&!mark[i+1]&&isl[i+1]===s){mark[i+1]=1;push(i+1);}
+        if(y>0&&!pan[i-N]&&!mark[i-N]&&isl[i-N]===s){mark[i-N]=1;push(i-N);}if(y<N-1&&!pan[i+N]&&!mark[i+N]&&isl[i+N]===s){mark[i+N]=1;push(i+N);}}}}
+  // area e un punto interno di ogni pezzo: servono ai concept pronti
+  const iarea=new Uint32Array(ni+1),iseed=new Int32Array(ni+1).fill(-1);for(let i=0;i<NN;i++){const v=isl[i];if(v){iarea[v]++;if(iseed[v]<0)iseed[v]=i;}}
+  np-=small;
+  return{isl,pan,ib,pb,iarea,iseed,seams:greenSeams&&ng>0,ni,np,ms:performance.now()-t0};
+}
+
+/* distanza euclidea al quadrato (Felzenszwalb & Huttenlocher): per ogni pixel, distanza dal pixel “dentro” più vicino */
+const INF=1e20;
+function edt1(f,n,d,v,z){let k=0;v[0]=0;z[0]=-INF;z[1]=INF;
+  for(let q=1;q<n;q++){let s;while(true){const p=v[k];s=((f[q]+q*q)-(f[p]+p*p))/(2*q-2*p);if(s<=z[k]){k--;if(k<0){k=0;break;}}else break;}
+    k++;v[k]=q;z[k]=s;z[k+1]=INF;}
+  k=0;for(let q=0;q<n;q++){while(z[k+1]<q)k++;const p=v[k];d[q]=(q-p)*(q-p)+f[p];}}
+function edt(inside,w,h){
+  const g=new Float32Array(w*h),n=Math.max(w,h),f=new Float32Array(n),d=new Float32Array(n),v=new Int32Array(n),z=new Float32Array(n+1);
+  for(let i=0;i<w*h;i++)g[i]=inside[i]?0:INF;
+  for(let x=0;x<w;x++){for(let y=0;y<h;y++)f[y]=g[y*w+x];edt1(f,h,d,v,z);for(let y=0;y<h;y++)g[y*w+x]=d[y];}
+  for(let y=0;y<h;y++){const o=y*w;for(let x=0;x<w;x++)f[x]=g[o+x];edt1(f,w,d,v,z);for(let x=0;x<w;x++)g[o+x]=d[x];}
+  return g;
+}
+/* maschere di un riempimento: corpo allargato di “grow” e contorno lungo il bordo (dentro, a cavallo o fuori) */
+function fillMasks(o){
+  if(!WL||WL.ver!==o.ver)return null;
+  const arr=o.mode==='island'?WL.isl:WL.pan,{x0,y0,w,h}=o,tab=new Uint8Array(65536);for(const id of o.ids)tab[id]=1;
+  const M=new Uint8Array(w*h);for(let y=0;y<h;y++){let s=((y+y0)<<12)+x0,q=y*w;for(let x=0;x<w;x++,s++,q++)if(tab[arr[s]])M[q]=1;}
+  let body=null,edge=null,dOut=null;
+  const need=(r)=>dOut||(dOut=edt(M,w,h));
+  if(!o.only){const gr=o.grow,lim=gr*gr+1;body=new Uint8Array(w*h);
+    if(gr<=0){for(let i=0;i<M.length;i++)if(M[i])body[i]=255;}
+    else{const D=need();for(let i=0;i<D.length;i++)if(D[i]<=lim)body[i]=255;}}
+  if(o.edge){const W=o.edge.width,pos=o.edge.pos||'inside';edge=new Uint8Array(w*h);
+    const rOut=pos==='outside'?W:pos==='center'?W/2:0,rIn=pos==='inside'?W:pos==='center'?W/2:0;
+    if(rOut>0){const D=need(),l=rOut*rOut;for(let i=0;i<D.length;i++)if(!M[i]&&D[i]<=l)edge[i]=255;}
+    if(rIn>0){const inv=new Uint8Array(w*h);for(let i=0;i<M.length;i++)inv[i]=M[i]?0:1;const D=edt(inv,w,h),l=rIn*rIn;for(let i=0;i<D.length;i++)if(M[i]&&D[i]<=l)edge[i]=255;}}
+  return{body,edge};
+}
+
+/* TGA 32 bit (con la pulizia dei materiali se serve): ogni pixel va al colore region più vicino */
+function snapPixels(u,pal){
+  const pr=pal.map(v=>[v&255,(v>>8)&255,(v>>16)&255]),cache=new Map(pal.map(v=>[v,v]));
+  let lv=-1,lo=0;   // pixel uguale al precedente (quasi sempre): niente ricerca
+  for(let i=0;i<u.length;i++){const v=u[i];if(v===lv){if(lo!==v)u[i]=lo;continue;}let o=cache.get(v);
+    if(o===undefined){const r=v&255,g=(v>>8)&255,b=(v>>16)&255;let bd=1e9;for(let j=0;j<pal.length;j++){const q=pr[j],d=(r-q[0])**2+(g-q[1])**2+(b-q[2])**2;if(d<bd){bd=d;o=pal[j];}}cache.set(v,o);}
+    lv=v;lo=o;if(o!==v)u[i]=o;}
+}
+function makeTGA(buf,pal){
+  const src=new Uint32Array(buf,0,NN);if(pal)snapPixels(src,pal);
+  for(let i=0;i<NN;i++){const v=src[i];src[i]=(v&0x0000FF00)|((v&0xFF)<<16)|((v>>>16)&0xFF)|0xFF000000;}
+  const t=new Uint8Array(18+NN*4);t[2]=2;t[12]=N&255;t[13]=N>>8;t[14]=N&255;t[15]=N>>8;t[16]=32;t[17]=0x28;t.set(new Uint8Array(buf,0,NN*4),18);return t;
+}
+
+/* ritaglio un livello sui pixel visibili: molti livelli del template sono grandi come la tela ma quasi vuoti */
+function cropPx(l,px){if(!px)return null;const {w,h,rgba}=px;let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y++){let o=y*w*4+3,a=-1,b=-1;for(let x=0;x<w;x++,o+=4)if(rgba[o]){if(a<0)a=x;b=x;}if(a>=0){if(a<x0)x0=a;if(b>x1)x1=b;if(y<y0)y0=y;y1=y;}}
+  if(x1<0)return null;if(x0===0&&y0===0&&x1===w-1&&y1===h-1)return px;
+  const nw=x1-x0+1,nh=y1-y0+1,out=new Uint8ClampedArray(nw*nh*4);
+  for(let y=0;y<nh;y++){const st=((y+y0)*w+x0)*4;out.set(rgba.subarray(st,st+nw*4),y*nw*4);}
+  l.left+=x0;l.top+=y0;l.right=l.left+nw;l.bottom=l.top+nh;return{w:nw,h:nh,rgba:out};}
+self.onmessage=e=>{
+  const {id,op,a}=e.data,prog=m=>self.postMessage({id,prog:m});
+  try{
+    if(op==='ping'){self.postMessage({id,res:'pong'});return;}
+    if(op==='psd'){
+      const t0=performance.now(),psd=readPSD(a.buf),tr=[];
+      const t1=performance.now();prog('Preparo livelli, adesivi e materiali…');
+      for(const l of psd.layers){
+        if(!l.isGroup&&!l.isDivider&&!l.adjust){
+          l.baseColor=baseColorOf(l);
+          const px=cropPx(l,layerRGBA(l));
+          if(px){l.px=px;l.any=true;tr.push(px.rgba.buffer);}}
+        delete l.data;delete l.chans;}
+      self.postMessage({id,res:{psd,ms:[t1-t0,performance.now()-t1]}},tr);return;}
+    if(op==='analyze'){
+      const r=labelTemplate(new Uint8Array(a.buf),prog);
+      WL={isl:r.isl,pan:r.pan,ver:a.ver};
+      const isl=r.isl.slice(),pan=r.pan.slice();
+      self.postMessage({id,res:Object.assign(r,{isl,pan})},[isl.buffer,pan.buffer]);return;}
+    if(op==='fill'){const t0=performance.now(),r=fillMasks(a),tr=[];if(r){if(r.body)tr.push(r.body.buffer);if(r.edge)tr.push(r.edge.buffer);r.ms=performance.now()-t0;}
+      self.postMessage({id,res:r},tr);return;}
+    if(op==='tga'){const t0=performance.now(),t=makeTGA(a.buf,a.pal);self.postMessage({id,res:{tga:t,ms:performance.now()-t0}},[t.buffer]);return;}
+    throw new Error('operazione sconosciuta '+op);
+  }catch(err){self.postMessage({id,err:String(err&&err.message||err)});}
+};
+</script>
 <script>
 (function(){
 "use strict";
@@ -417,6 +655,27 @@ const $=(s,r=document)=>r.querySelector(s);
 const el=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a){const v=a[k];if(k==='class')e.className=v;else if(k==='style')e.style.cssText=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v!==false&&v!=null)e.setAttribute(k,v===true?'':v);}for(const x of c.flat()){if(x==null||x===false)continue;e.append(x.nodeType?x:document.createTextNode(x));}return e;};
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const tick=()=>new Promise(r=>setTimeout(r,20));
+/* misure dei tempi delle operazioni pesanti (Documento → Prestazioni) */
+const PERF=[];
+function perfLog(name,ms,extra){PERF.push({name,ms:Math.round(ms),extra:extra||'',t:Date.now()});if(PERF.length>300)PERF.shift();}
+const pnow=()=>performance.now();
+let WK=null,wkMode='',wkSeq=0;const WJ=new Map();
+function wkHandle(e){const m=e.data,j=WJ.get(m.id);if(!j)return;if(m.prog){if(j.onProg)j.onProg(m.prog);return;}WJ.delete(m.id);if(m.err)j.rej(new Error(m.err));else j.res(m.res);}
+function wkLocal(){
+  const inner={postMessage:m=>setTimeout(()=>wkHandle({data:m}),0),onmessage:null};
+  new Function('self',document.getElementById('wkSrc').textContent)(inner);wkMode='thread principale (worker non disponibile)';
+  return{postMessage:m=>setTimeout(()=>inner.onmessage({data:m}),0)};
+}
+const wkReady=new Promise(res=>{
+  const local=()=>{WK=wkLocal();res();};
+  try{const w=new Worker(URL.createObjectURL(new Blob([document.getElementById('wkSrc').textContent],{type:'text/javascript'})));
+    const to=setTimeout(()=>{w.terminate();local();},4000);
+    w.onmessage=e=>{if(e.data&&e.data.id===0){clearTimeout(to);WK=w;wkMode='Web Worker';w.onmessage=wkHandle;res();}};
+    w.onerror=e=>{e.preventDefault();clearTimeout(to);w.terminate();local();};
+    w.postMessage({id:0,op:'ping'});
+  }catch(e){local();}
+});
+async function wcall(op,a,transfer,onProg){await wkReady;const id=++wkSeq;return new Promise((res,rej)=>{WJ.set(id,{res,rej,onProg});WK.postMessage({id,op,a},transfer||[]);});}
 const mk=(w,h)=>{const c=document.createElement('canvas');c.width=Math.max(1,w);c.height=Math.max(1,h);return c;};
 
 /* ================= stato ================= */
@@ -618,76 +877,15 @@ function bbox(pts){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const p of pts){a=Math.min(
 const mirrorY=y=>2*S.axis-y;
 
 /* ================= analisi dei pezzi ================= */
+let labVer=0;
 async function analyze(rgba){
-  busy('Riconosco i pezzi del template…');await tick();
-  const t0=performance.now();
-  let sum=0;for(let i=0;i<NN*4;i+=4*97)sum+=(rgba[i]+rgba[i+1]+rgba[i+2]);
-  const dark=sum/(NN/97*3)<110;
-  const st=new Uint8Array(NN),grn=new Uint8Array(NN);
-  for(let i=0,p=0;i<NN;i++,p+=4){
-    const r=rgba[p],g=rgba[p+1],b=rgba[p+2];
-    if(dark){const m=r>g?(r>b?r:b):(g>b?g:b);if(m>40)st[i]=1;}else{if(r+g+b<540)st[i]=1;}
-    if(g>r+30&&g>b+30&&g>60)grn[i]=1;
-  }
-  // se quasi tutte le linee sono verdi (es. Ferrari 499P) il verde non segna i pannelli ma ogni triangolo: lo ignoro
-  let nl=0,ng=0;for(let i=0;i<NN;i+=7){if(st[i]===1){nl++;if(grn[i])ng++;}}
-  const greenSeams=!(nl&&ng/nl>0.5);if(!greenSeams)grn.fill(0);
-  const Q=new Int32Array(NN);
-  // 1) sfondo: componenti 4-connesse; quelle che toccano il bordo (o enormi) sono "fuori"
-  for(let s=0;s<NN;s++){
-    if(st[s]!==0)continue;
-    let h=0,t=0,border=false;Q[t++]=s;st[s]=4;
-    while(h<t){const i=Q[h++],x=i&4095,y=i>>12;
-      if(x===0||y===0||x===N-1||y===N-1)border=true;
-      if(x>0&&st[i-1]===0){st[i-1]=4;Q[t++]=i-1;}
-      if(x<N-1&&st[i+1]===0){st[i+1]=4;Q[t++]=i+1;}
-      if(y>0&&st[i-N]===0){st[i-N]=4;Q[t++]=i-N;}
-      if(y<N-1&&st[i+N]===0){st[i+N]=4;Q[t++]=i+N;}}
-    const v=(border||t>200000)?2:3;for(let k=0;k<t;k++)st[Q[k]]=v;
-  }
-  busy('Separo i pezzi…');await tick();
-  const solid=i=>st[i]===1||st[i]===3;
-  // 2) pezzi (isole) 8-connessi
-  const isl=new Uint16Array(NN),ib=[null];let ni=0;
-  for(let s=0;s<NN;s++){
-    if(isl[s]||!(st[s]===1||st[s]===3))continue;if(ni>=65534)break;ni++;
-    let h=0,t=0,x0=N,y0=N,x1=0,y1=0;Q[t++]=s;isl[s]=ni;
-    while(h<t){const i=Q[h++],x=i&4095,y=i>>12;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
-      for(let dy=-1;dy<=1;dy++){const yy=y+dy;if(yy<0||yy>=N)continue;for(let dx=-1;dx<=1;dx++){const xx=x+dx;if(xx<0||xx>=N)continue;const j=(yy<<12)|xx;if(!isl[j]&&(st[j]===1||st[j]===3)){isl[j]=ni;Q[t++]=j;}}}}
-    ib.push([x0,y0,x1,y1]);
-  }
-  busy('Trovo i pannelli…');await tick();
-  // 3) pannelli: dentro i pezzi, separati dalle linee verdi
-  const pan=new Uint16Array(NN),pb=[null];let np=0;
-  for(let s=0;s<NN;s++){
-    if(pan[s]||!isl[s]||grn[s])continue;if(np>=65534)break;np++;
-    let h=0,t=0,x0=N,y0=N,x1=0,y1=0;Q[t++]=s;pan[s]=np;
-    while(h<t){const i=Q[h++],x=i&4095,y=i>>12;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
-      if(x>0&&!pan[i-1]&&isl[i-1]&&!grn[i-1]){pan[i-1]=np;Q[t++]=i-1;}
-      if(x<N-1&&!pan[i+1]&&isl[i+1]&&!grn[i+1]){pan[i+1]=np;Q[t++]=i+1;}
-      if(y>0&&!pan[i-N]&&isl[i-N]&&!grn[i-N]){pan[i-N]=np;Q[t++]=i-N;}
-      if(y<N-1&&!pan[i+N]&&isl[i+N]&&!grn[i+N]){pan[i+N]=np;Q[t++]=i+N;}}
-    pb.push([x0,y0,x1,y1]);
-  }
-  // pannelli minuscoli (frammenti tra le linee, es. Cadillac): li svuoto e li faccio assorbire dal pannello vicino
-  // (solo se nello stesso pezzo c'è un pannello vero che li può assorbire)
-  const MINP=300,area=new Uint32Array(np+1),pIsl=new Uint16Array(np+1);for(let i=0;i<NN;i++){const v=pan[i];if(v){area[v]++;pIsl[v]=isl[i];}}
-  const iMax=new Uint32Array(ni+1);for(let k=1;k<=np;k++)if(area[k]>iMax[pIsl[k]])iMax[pIsl[k]]=area[k];
-  const drop=new Uint8Array(np+1);let small=0;for(let k=1;k<=np;k++)if(area[k]<MINP&&iMax[pIsl[k]]>=MINP){drop[k]=1;small++;}
-  if(small)for(let i=0;i<NN;i++){if(drop[pan[i]])pan[i]=0;}
-  // le linee verdi (e i frammenti) vanno al pannello vicino dello stesso pezzo
-  for(let pass=0;pass<60;pass++){let ch=0;
-    for(let i=0;i<NN;i++){if(pan[i]||!isl[i])continue;const x=i&4095,y=i>>12;let v=0;
-      if(x>0&&pan[i-1]&&isl[i-1]===isl[i])v=pan[i-1];else if(x<N-1&&pan[i+1]&&isl[i+1]===isl[i])v=pan[i+1];else if(y>0&&pan[i-N]&&isl[i-N]===isl[i])v=pan[i-N];else if(y<N-1&&pan[i+N]&&isl[i+N]===isl[i])v=pan[i+N];
-      if(v){pan[i]=v;ch++;const b=pb[v];if(x<b[0])b[0]=x;if(x>b[2])b[2]=x;if(y<b[1])b[1]=y;if(y>b[3])b[3]=y;}}
-    if(!ch)break;}
-  // area e un punto interno di ogni pezzo: servono ai concept pronti
-  const iarea=new Uint32Array(ni+1),iseed=new Int32Array(ni+1).fill(-1);for(let i=0;i<NN;i++){const v=isl[i];if(v){iarea[v]++;if(iseed[v]<0)iseed[v]=i;}}
-  np-=small;
-  LAB={isl,pan,ib,pb,iarea,iseed,seams:greenSeams&&ng>0,ver:(LAB?LAB.ver:0)+1};
+  busy('Riconosco i pezzi del template…');
+  const ver=++labVer,t0=pnow(),r=await wcall('analyze',{buf:rgba.buffer,ver},[rgba.buffer],m=>busy(m));
+  perfLog('Analisi pezzi e pannelli',r.ms,`${r.ni} pezzi, ${r.np} pannelli · attesa totale ${Math.round(pnow()-t0)} ms`);
+  LAB={isl:r.isl,pan:r.pan,ib:r.ib,pb:r.pb,iarea:r.iarea,iseed:r.iseed,seams:r.seams,ver};
   for(const k in FC)delete FC[k];
   busy(null);
-  setStatus(LAB.seams?`Template pronto: ${ni} pezzi, ${np} pannelli (${Math.round(performance.now()-t0)} ms)`:`Template pronto: ${ni} pezzi. Il wireframe non ha linee verdi dei pannelli: “Riempi pannello” colora il pezzo intero.`);
+  setStatus(LAB.seams?`Template pronto: ${r.ni} pezzi, ${r.np} pannelli`:`Template pronto: ${r.ni} pezzi. Il wireframe non ha linee verdi dei pannelli: “Riempi pannello” colora il pezzo intero.`);
 }
 function labelAt(mode,x,y){
   if(!LAB)return 0;const ix=Math.floor(x),iy=Math.floor(y);if(ix<0||iy<0||ix>=N||iy>=N)return 0;
@@ -786,34 +984,47 @@ function edgeMask(m,w,pos){
 /* riempimenti di pezzi/pannelli: maschera calcolata dalle etichette e messa in cache */
 const FC={};
 function fillIds(l){const s=new Set();for(const p of l.seeds){const v=labelAt(l.mode,p.x,p.y);if(v)s.add(v);if(l.mirror){const m=labelAt(l.mode,p.x,mirrorY(p.y));if(m)s.add(m);}}return s;}
+/* il worker calcola le maschere (corpo allargato e contorno) con la distanza euclidea; qui si applicano colore e trama.
+   Mentre il worker lavora si vede il riempimento precedente, così l'interfaccia non si blocca. */
+function alphaCanvas(a,w,h){const c=mk(w,h),x=c.getContext('2d'),id=x.createImageData(w,h),d=id.data;for(let i=0,q=3;i<a.length;i++,q+=4)d[q]=a[i];x.putImageData(id,0,0);return c;}
+function paintFill(ent,l,E){
+  const {w,h,x:x0,y:y0}=ent,M=ent.masks;let out=null,cb=null,ce=null;
+  if(M.body){out=mk(w,h);const oc=out.getContext('2d');oc.drawImage(M.body,0,0);oc.globalCompositeOperation='source-in';
+    oc.fillStyle=paintStyle(oc,l.paint,l.color,-x0,-y0,{x0,y0,x1:x0+w-1,y1:y0+h-1});oc.fillRect(0,0,w,h);oc.globalCompositeOperation='source-over';}
+  if(M.edge&&E){ce=mk(w,h);const ex=ce.getContext('2d');ex.drawImage(M.edge,0,0);ex.globalCompositeOperation='source-in';ex.fillStyle=E.color;ex.fillRect(0,0,w,h);
+    if(out){cb=mk(w,h);cb.getContext('2d').drawImage(out,0,0);out.getContext('2d').drawImage(ce,0,0);}else{out=mk(w,h);out.getContext('2d').drawImage(ce,0,0);}}
+  ent.cv=out;ent.cb=cb;ent.ce=ce;
+}
 function fillCache(l){
   if(!LAB)return null;
   const E=l.edge&&l.edge.on&&l.edge.width>0?l.edge:null;
-  const key=JSON.stringify([l.mode,l.seeds,l.color,l.paint,l.grow,LAB.ver,l.mirror?S.axis:0,E]);
+  const mkey=JSON.stringify([l.mode,l.seeds,l.grow,LAB.ver,l.mirror?S.axis:0,E?[E.width,E.pos,E.only]:0]),key=mkey+JSON.stringify([l.color,l.paint,E&&E.color]);
   const c=FC[l.id];if(c&&c.key===key)return c;
-  const ids=fillIds(l);if(!ids.size){FC[l.id]={key,ids,cv:null};return FC[l.id];}
-  const arr=l.mode==='island'?LAB.isl:LAB.pan,bbs=l.mode==='island'?LAB.ib:LAB.pb,g=Math.max(l.grow??3,E?Math.ceil(E.width)+2:0);
+  // stessa forma, colore diverso: ricoloro le maschere che ho già
+  if(c&&c.mkey===mkey&&c.masks){const ent=Object.assign({},c,{key});paintFill(ent,l,E);FC[l.id]=ent;return ent;}
+  const ids=fillIds(l);if(!ids.size){FC[l.id]={key,mkey,ids,cv:null,w:0,h:0};return FC[l.id];}
+  const bbs=l.mode==='island'?LAB.ib:LAB.pb,g=Math.max(l.grow??3,E?Math.ceil(E.width)+2:0);
   let x0=N,y0=N,x1=0,y1=0;for(const id of ids){const b=bbs[id];x0=Math.min(x0,b[0]);y0=Math.min(y0,b[1]);x1=Math.max(x1,b[2]);y1=Math.max(y1,b[3]);}
   x0=Math.max(0,x0-g);y0=Math.max(0,y0-g);x1=Math.min(N-1,x1+g);y1=Math.min(N-1,y1+g);
-  const w=x1-x0+1,h=y1-y0+1,tab=new Uint8Array(65536);for(const id of ids)tab[id]=1;
-  const m=mk(w,h),mc=m.getContext('2d'),id=mc.createImageData(w,h),d=id.data;
-  for(let y=0;y<h;y++){let o=((y+y0)<<12)+x0,q=y*w*4;for(let x=0;x<w;x++,o++,q+=4){if(tab[arr[o]])d[q+3]=255;}}
-  mc.putImageData(id,0,0);
-  const out=mk(w,h),oc=out.getContext('2d'),gr=l.grow??3;
-  if(!E||!E.only){
-    for(let dy=-gr;dy<=gr;dy++)for(let dx=-gr;dx<=gr;dx++){if(dx*dx+dy*dy<=gr*gr+1)oc.drawImage(m,dx,dy);}
-    oc.globalCompositeOperation='source-in';oc.fillStyle=paintStyle(oc,l.paint,l.color,-x0,-y0,{x0,y0,x1,y1});oc.fillRect(0,0,w,h);oc.globalCompositeOperation='source-over';}
-  let cb=E&&E.only?null:out,ce=null;
-  if(E){if(cb){cb=mk(w,h);cb.getContext('2d').drawImage(out,0,0);}
-    const e=edgeMask(m,E.width,E.pos||'inside'),ex=e.getContext('2d');ex.globalCompositeOperation='source-in';ex.fillStyle=E.color;ex.fillRect(0,0,w,h);oc.drawImage(e,0,0);ce=e;}
-  FC[l.id]={key,ids,cv:out,cb,ce,x:x0,y:y0};return FC[l.id];
+  const w=x1-x0+1,h=y1-y0+1,ent={key,mkey,ids,x:x0,y:y0,w,h,cv:null,cb:null,ce:null,pending:true,stale:c&&(c.cv?c:c.stale)||null};
+  FC[l.id]=ent;const t0=pnow();
+  ent.p=wcall('fill',{ver:LAB.ver,mode:l.mode,ids:[...ids],x0,y0,w,h,grow:l.grow??3,only:!!(E&&E.only),edge:E?{width:E.width,pos:E.pos||'inside'}:null}).then(r=>{
+    ent.pending=false;if(!r)return;
+    const t1=pnow();ent.masks={body:r.body?alphaCanvas(r.body,w,h):null,edge:r.edge?alphaCanvas(r.edge,w,h):null};
+    const cur=FC[l.id];if(cur!==ent&&!(cur&&cur.mkey===mkey))return;
+    if(cur!==ent){cur.masks=ent.masks;cur.pending=false;cur.stale=null;paintFill(cur,l,E);}else{ent.stale=null;paintFill(ent,l,E);}
+    perfLog('Riempimento',r.ms+(pnow()-t1),`${ids.size} ${l.mode==='island'?'pezzi':'pannelli'}, ${w}×${h} · worker ${Math.round(r.ms)} ms, attesa ${Math.round(pnow()-t0)} ms`);
+    requestDraw();
+  }).catch(e=>{ent.pending=false;toast('Riempimento non riuscito: '+e.message,5000);});
+  return ent;
 }
-
+// prima di esportare o fare una miniatura aspetto che tutti i riempimenti siano pronti
+async function fillsReady(){for(let k=0;k<6;k++){const ps=[];for(const l of S.layers)if(l.type==='fill'&&vis(l)){const c=fillCache(l);if(c&&c.pending)ps.push(c.p);}if(!ps.length)return;await Promise.all(ps);}}
 function drawBody(ctx,l,alpha){
   if(l.type==='shape'){drawShapeOnce(ctx,l,l.color,false,alpha);if(l.mirror)drawShapeOnce(ctx,l,l.mirrorSwap?l.color2:l.color,true,alpha);}
   else if(l.type==='text'){drawText(ctx,l,alpha);if(l.mirror)drawText(ctx,Object.assign({},l,{y:mirrorY(l.y),rot:(l.rot||0)+(l.mirrorRot?180:0)}),alpha);}
   else if(l.type==='image'){drawImg(ctx,l,alpha);if(l.mirror)drawImg(ctx,Object.assign({},l,{y:mirrorY(l.y),rot:(l.rot||0)+(l.mirrorRot?180:0)}),alpha);}
-  else if(l.type==='fill'){const c=fillCache(l),cv=c&&(PART==='edge'?c.ce:PART==='body'?c.cb:c.cv);if(cv){ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(cv,c.x,c.y);ctx.restore();}}
+  else if(l.type==='fill'){const c0=fillCache(l),c=c0&&(c0.pending&&c0.stale?c0.stale:c0),cv=c&&(PART==='edge'?c.ce:PART==='body'?c.cb:c.cv);if(cv){ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(cv,c.x,c.y);ctx.restore();}}
   else if(l.type==='paint'){if(PART==='edge')return;ctx.save();ctx.globalAlpha=alpha;
     if(alpha<1){/* opacità uniforme sui tratti sovrapposti */const cv=ctx.canvas,t=tmp('pa',cv.width,cv.height),tc=t.getContext('2d');tc.setTransform(ctx.getTransform());for(const s of l.strokes)strokePath(tc,s,s.color);ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(t,0,0);}
     else for(const s of l.strokes)strokePath(ctx,s,s.color);ctx.restore();}
@@ -826,6 +1037,14 @@ function layerFilter(ctx,l){
   if(A){if((A.bri??100)!==100)f.push(`brightness(${A.bri}%)`);if((A.con??100)!==100)f.push(`contrast(${A.con}%)`);if((A.sat??100)!==100)f.push(`saturate(${A.sat}%)`);if(A.hue)f.push(`hue-rotate(${A.hue}deg)`);}
   if(l.blur>0)f.push(`blur(${(l.blur*k).toFixed(2)}px)`);return f.join(' ');
 }
+// nell'export dei materiali la soglia dei bordi serve solo dove c'è il livello (e la sua copia speculare): non su tutta la tela
+function hardRect(l,ctx,cv){
+  const full={x:0,y:0,w:cv.width,h:cv.height},m=ctx.getTransform();
+  if(!m.isIdentity||cv.width!==N)return full;const b=bounds(l);if(!b)return full;
+  const pad=300+(l.blur||0)*3;let y0=b.y0,y1=b.y1;if(l.mirror){const a=mirrorY(b.y0),c=mirrorY(b.y1);y0=Math.min(y0,a,c);y1=Math.max(y1,a,c);}
+  const x=Math.max(0,Math.floor(b.x0-pad)),y=Math.max(0,Math.floor(y0-pad)),X=Math.min(N,Math.ceil(b.x1+pad)),Y=Math.min(N,Math.ceil(y1+pad));
+  return X>x&&Y>y?{x,y,w:X-x,h:Y-y}:full;
+}
 function drawLayer(ctx,l,tint,hard,noBlend){
   if(!vis(l))return;
   const alpha=tint?1:(l.opacity??1),hasErase=l.erase&&l.erase.length,fs=tint?'':layerFilter(ctx,l),bl=!tint&&!noBlend&&l.blend&&l.blend!=='source-over'?l.blend:null;
@@ -834,7 +1053,8 @@ function drawLayer(ctx,l,tint,hard,noBlend){
   drawBody(tc,l,alpha);
   if(hasErase){tc.globalCompositeOperation='destination-out';for(const s of l.erase)strokePath(tc,s,'#000');tc.globalCompositeOperation='source-over';}
   if(tint){tc.setTransform(1,0,0,1,0,0);tc.globalCompositeOperation='source-in';tc.fillStyle=tint;tc.fillRect(0,0,cv.width,cv.height);tc.globalCompositeOperation='source-over';
-    if(hard){const id=tc.getImageData(0,0,cv.width,cv.height),d=id.data;for(let i=3;i<d.length;i+=4)d[i]=d[i]>=128?255:0;tc.putImageData(id,0,0);}}
+    // i riempimenti hanno già maschere nette (0 o 255): niente soglia
+    if(hard&&l.type!=='fill'){const r=hardRect(l,ctx,cv),id=tc.getImageData(r.x,r.y,r.w,r.h),d=id.data;for(let i=3;i<d.length;i+=4)d[i]=d[i]>=128?255:0;tc.putImageData(id,r.x,r.y);}}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);if(fs)ctx.filter=fs;if(bl)ctx.globalCompositeOperation=bl;ctx.drawImage(t,0,0);ctx.restore();
 }
 /* disegna i livelli in ordine; quelli con “Ritaglia sul livello sotto” compaiono solo dentro la forma del primo livello normale sotto di loro.
@@ -872,6 +1092,8 @@ function regionNoPaint(){
   x.putImageData(id,0,0);return regionNP=c;
 }
 /* nel file esportato ogni pixel deve essere esattamente uno dei colori dei materiali: porto i bordi sfumati al più vicino */
+// colori region ammessi nel file (come pixel a 32 bit little-endian): i 5 standard più i materiali personalizzati
+function regionPalette(){return [0xFF000000,0xFF0000FF,0xFF00FF00,0xFFFF0000,0xFFFFFFFF].concat((S.customMats||[]).map(c=>{const v=parseInt(c.hex.slice(1),16);return (0xFF000000|((v&255)<<16)|(v&0xFF00)|(v>>16))>>>0;}));}
 function snapRegions(ctx){
   const W=ctx.canvas.width,H=ctx.canvas.height,id=ctx.getImageData(0,0,W,H),u=new Uint32Array(id.data.buffer),P=[0xFF000000,0xFF0000FF,0xFF00FF00,0xFFFF0000,0xFFFFFFFF];
   if(S.customMats&&S.customMats.length){
@@ -886,12 +1108,12 @@ function snapRegions(ctx){
     const r=v&255,g=(v>>8)&255,b=(v>>16)&255;u[i]=P[r>127?(g>127?4:(b>127?4:1)):(g>127?2:(b>127?3:0))];}
   ctx.putImageData(id,0,0);
 }
-function drawRegions(ctx,hard){
+function drawRegions(ctx,hard,noSnap){
   const bm=S.baseMat&&S.baseMat!=='keep'?matCol(S.baseMat,hard):null;
   ctx.save();ctx.fillStyle=bm||'#000';ctx.fillRect(0,0,N,N);
   const rc=bm&&S.baseMat!=='paint'?regionNoPaint():regionCv;if(rc)ctx.drawImage(rc,0,0,N,N);
   drawStack(ctx,l=>!l.guide,l=>(l.mat&&matCol(l.mat,hard))||false,false,l=>sepOutline(l)?(matCol(l.outMat,hard)||null):undefined);ctx.restore();
-  if(hard)snapRegions(ctx);
+  if(hard&&!noSnap)snapRegions(ctx);
 }
 
 const view=$('#view'),vctx=view.getContext('2d');let dpr=1,needs=false;
@@ -973,7 +1195,7 @@ function overlay(c){
   if(l&&vis(l)&&S.tool==='select'){
     if(l.type==='shape'){c.stroke(shapePath(l));if(!l.parts)for(const p of l.pts){c.beginPath();if(p.c)c.rect(p.x-HR(),p.y-HR(),HR()*2,HR()*2);else c.arc(p.x,p.y,HR(),0,7);c.fill();c.stroke();}}
     else if(l.type==='text'||l.type==='image'){const b=l.type==='text'?textBox(l):imgBox(l);c.translate(l.x,l.y);c.rotate((l.rot||0)*Math.PI/180);c.setLineDash(l.locked?[6/z,5/z]:[]);c.strokeRect(-b.w/2,-b.h/2,b.w,b.h);}
-    else if(l.type==='fill'){const f=FC[l.id];if(f&&f.cv){c.setLineDash([8/z,6/z]);c.strokeRect(f.x,f.y,f.cv.width,f.cv.height);}}
+    else if(l.type==='fill'){const f=FC[l.id];if(f&&f.w){c.setLineDash([8/z,6/z]);c.strokeRect(f.x,f.y,f.w,f.h);}}
   }
   c.restore();
   if(l&&vis(l)&&S.tool==='select'&&!l.locked){const H=xformHandles(l);if(H){
@@ -1099,7 +1321,7 @@ function toggleSel(id){const ids=selIds();const i=ids.indexOf(id);if(i>=0)ids.sp
 function bounds(l){
   if(l.type==='shape'&&l.pts.length)return bbox(l.pts);
   if(l.type==='text'||l.type==='image'){const H=xformHandles(l);return H?bbox(H.corners):null;}
-  if(l.type==='fill'){const c=fillCache(l);return c&&c.cv?{x0:c.x,y0:c.y,x1:c.x+c.cv.width,y1:c.y+c.cv.height}:null;}
+  if(l.type==='fill'){const c=fillCache(l);return c&&c.w?{x0:c.x,y0:c.y,x1:c.x+c.w,y1:c.y+c.h}:null;}
   if(l.type==='paint'){const q=[];for(const st of l.strokes)for(let i=0;i<st.pts.length;i+=2)q.push({x:st.pts[i],y:st.pts[i+1]});return q.length?bbox(q):null;}
   return null;
 }
@@ -1343,108 +1565,38 @@ function buildOpts(){
 }
 
 /* ================= import: PSD ================= */
-function readPSD(buf){
-  const dv=new DataView(buf),u8=new Uint8Array(buf);let o=0;
-  const U8=()=>u8[o++],U16=()=>{const v=dv.getUint16(o);o+=2;return v;},I16=()=>{const v=dv.getInt16(o);o+=2;return v;},U32=()=>{const v=dv.getUint32(o);o+=4;return v;},I32=()=>{const v=dv.getInt32(o);o+=4;return v;};
-  const sig=String.fromCharCode(...u8.slice(0,4));if(sig!=='8BPS')throw new Error('non è un file PSD');
-  o=4;const ver=U16();if(ver!==1)throw new Error('i file PSB (grandi) non sono supportati, salva come PSD');
-  o=12;const ch=U16(),H=U32(),W=U32(),depth=U16(),mode=U16();
-  if(depth!==8)throw new Error(`il PSD è a ${depth} bit: salvalo a 8 bit per canale`);
-  if(mode!==3)throw new Error('il PSD deve essere in modalità RGB');
-  {const cm=U32();o+=cm;}{const irl=U32();o+=irl;}
-  const lmLen=U32(),lmEnd=o+lmLen;const liLen=U32();let cnt=Math.abs(I16());
-  const L=[];
-  for(let i=0;i<cnt;i++){
-    const top=I32(),left=I32(),bottom=I32(),right=I32(),nch=U16(),chans=[];
-    for(let k=0;k<nch;k++)chans.push({id:I16(),len:U32()});
-    o+=4;const blend=String.fromCharCode(u8[o],u8[o+1],u8[o+2],u8[o+3]);o+=4;
-    const opacity=U8(),clip=U8(),flags=U8();o+=1;
-    const exLen=U32(),exEnd=o+exLen;
-    const mLen=U32();let mask=null;if(mLen>=20){const mt=dv.getInt32(o),ml=dv.getInt32(o+4),mb=dv.getInt32(o+8),mr=dv.getInt32(o+12);mask={top:mt,left:ml,bottom:mb,right:mr,dc:u8[o+16],flags:u8[o+17]};}o+=mLen;
-    {const brl=U32();o+=brl;}
-    const nl=u8[o];let name=new TextDecoder('latin1').decode(u8.slice(o+1,o+1+nl));o+=Math.ceil((nl+1)/4)*4;
-    let sect=null,soco=null,adjust=false;
-    while(o+12<=exEnd){
-      const key=String.fromCharCode(u8[o+4],u8[o+5],u8[o+6],u8[o+7]),len=dv.getUint32(o+8),d=o+12;
-      if(key==='luni'){const n=dv.getUint32(d);let s='';for(let k=0;k<n;k++)s+=String.fromCharCode(dv.getUint16(d+4+2*k));name=s.replace(/\0+$/,'');}
-      else if(key==='lsct'||key==='lsdk')sect=dv.getUint32(d);
-      else if(key==='SoCo'){const blk=u8.subarray(d,d+len),find=t=>{const tt=[...t].map(c=>c.charCodeAt(0));outer:for(let j=0;j<blk.length-tt.length;j++){for(let q=0;q<tt.length;q++)if(blk[j+q]!==tt[q])continue outer;return j;}return -1;};
-        const rd=k=>{const j=find(k);return j<0?0:Math.round(new DataView(buf,d+j+8,8).getFloat64(0));};soco=[rd('Rd  doub'),rd('Grn doub'),rd('Bl  doub')];}
-      else if(['levl','curv','hue2','brit','blnc','vibA','selc','mixr','grdm','phfl','expA','post','thrs','nvrt','clrL'].includes(key))adjust=true;
-      o=d+len;
-    }
-    o=exEnd;
-    L.push({name,top,left,bottom,right,chans,blend,opacity,clip,hidden:!!(flags&2),mask,sect,soco,adjust,data:{}});
-  }
-  for(const l of L){
-    for(const c of l.chans){
-      const start=o,comp=dv.getUint16(o);
-      let w,h;if(c.id===-2&&l.mask){w=l.mask.right-l.mask.left;h=l.mask.bottom-l.mask.top;}else{w=l.right-l.left;h=l.bottom-l.top;}
-      if(w>0&&h>0&&c.id>=-2){
-        if(comp===0)l.data[c.id]=u8.slice(o+2,o+2+w*h);
-        else if(comp===1){const out=new Uint8Array(w*h);let p=o+2+2*h;
-          for(let y=0;y<h;y++){const end=p+dv.getUint16(o+2+2*y);let q=y*w;const qe=q+w;
-            while(p<end){const n=u8[p++];if(n<128){const m=n+1;out.set(u8.subarray(p,p+Math.min(m,qe-q)),q);q+=m;p+=m;}else if(n>128){const m=257-n,v=u8[p++];out.fill(v,q,Math.min(q+m,qe));q+=m;}}}
-          l.data[c.id]=out;}
-        else l.unsupported=true;
-      }
-      o=start+c.len;
-    }
-  }
-  // gruppi: i record vanno dal basso verso l'alto; risalgo dall'alto per costruire i percorsi
-  const stack=[],groups={};
-  for(let i=L.length-1;i>=0;i--){const l=L[i];
-    if(l.sect===1||l.sect===2){l.isGroup=true;l.path=stack.map(g=>g.name);l.groupHidden=stack.some(g=>g.hidden);
-      const g={id:'g'+i,name:l.name,hidden:l.hidden,parent:stack.length?stack[stack.length-1].id:null};groups[g.id]=g;stack.push(g);continue;}
-    if(l.sect===3){l.isDivider=true;stack.pop();continue;}
-    l.path=stack.map(g=>g.name);l.gids=stack.map(g=>g.id);l.groupHidden=stack.some(g=>g.hidden);}
-  return{W,H,layers:L,groups};
-}
-function layerRGBA(l){
-  const w=l.right-l.left,h=l.bottom-l.top;if(w<=0||h<=0||!l.data[0])return null;
-  const r=l.data[0],g=l.data[1]||r,b=l.data[2]||r,a=l.data[-1],m=l.data[-2],mk_=l.mask,out=new Uint8ClampedArray(w*h*4);
-  const useMask=mk_&&!(mk_.flags&2),mw=mk_?mk_.right-mk_.left:0;
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x,q=i*4;out[q]=r[i];out[q+1]=g[i];out[q+2]=b[i];let al=a?a[i]:255;
-    if(useMask){const ax=x+l.left,ay=y+l.top;let mv=mk_.dc;if(m&&ax>=mk_.left&&ax<mk_.right&&ay>=mk_.top&&ay<mk_.bottom)mv=m[(ay-mk_.top)*mw+(ax-mk_.left)];al=al*mv/255;}
-    out[q+3]=al;}
-  return{w,h,rgba:out};
-}
 const STICKER_RE=/sticker|number|plate|board|class|logo|decal|banner|michelin|goodyear/i, GUIDE_RE=/disable\s*for\s*export|position/i;
-function baseColorOf(l){
-  const w=l.right-l.left,h=l.bottom-l.top;
-  if(l.left>0||l.top>0||l.right<N*.99||l.bottom<N*.99)return null;
-  if(l.soco)return l.soco;
-  const r=l.data[0],g=l.data[1]||r,b=l.data[2]||r,a=l.data[-1];if(!r||w<=0||h<=0)return null;
-  const n=w*h,c=[r[0],g[0],b[0]];
-  for(let i=0;i<n;i+=1013){if(Math.abs(r[i]-c[0])>2||Math.abs(g[i]-c[1])>2||Math.abs(b[i]-c[2])>2||(a&&a[i]<250))return null;}
-  return c;
-}
 function toCanvas(px){const c=mk(px.w,px.h);c.getContext('2d').putImageData(new ImageData(px.rgba,px.w,px.h),0,0);return c;}
+let importing=false;
 async function importPSD(buf,fname){
-  busy('Leggo il PSD…');await tick();
-  let psd;try{psd=readPSD(buf);}catch(e){busy(null);toast('Non riesco ad aprire il PSD: '+e.message,5000);return;}
+  if(importing){toast('Sto già aprendo un template: aspetta che finisca.');return;}
+  importing=true;try{await importPSD_(buf,fname);}finally{importing=false;}
+}
+async function importPSD_(buf,fname){
+  busy('Leggo il PSD…');const t0=pnow();
+  let psd;try{const r=await wcall('psd',{buf},[buf],m=>busy(m));psd=r.psd;perfLog('PSD: lettura',r.ms[0],fname);perfLog('PSD: livelli in pixel',r.ms[1]);}catch(e){busy(null);toast('Non riesco ad aprire il PSD: '+e.message,5000);return;}
   if(psd.W!==N||psd.H!==N)toast(`Il template è ${psd.W}×${psd.H}: l’editor lavora a 4096, lo adatto.`,4000);
   busy('Preparo livelli, adesivi e materiali…');await tick();
   // nuova sessione: il lavoro precedente resta tra i recenti
   await flushSave();newDoc();S.projName='';projHandle=null;
   S.customMats=[];syncMats();
   S.layers=[];S.sel=null;S.groups={};S.baseMat='keep';S.basePaint={pat:'none',bg:'#1B1D20',scale:1,angle:0};for(const k in images)delete images[k];regionCv=null;regionNP=null;wireCv=null;LAB=null;wireBlob=null;regionBlob=null;
-  let uvw=null,regCount=0,imp=0,baseFound=false,over=false;const rc=mk(N,N),rx=rc.getContext('2d');rx.fillStyle='#000';rx.fillRect(0,0,N,N);
+  const tl=pnow();let ly=pnow(),uvw=null,regCount=0,imp=0,baseFound=false,over=false;const rc=mk(N,N),rx=rc.getContext('2d');rx.fillStyle='#000';rx.fillRect(0,0,N,N);
   const hex=c=>'#'+c.map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
   for(const l of psd.layers){
+    if(pnow()-ly>30){await new Promise(r=>setTimeout(r,0));ly=pnow();}
     if(l.isGroup||l.isDivider||l.adjust)continue;
     const inRegion=l.path.some(p=>/^region/i.test(p))||/^region/i.test(l.name);
     if(/^(uvw|wire)/i.test(l.name)||(l.blend==='scrn'&&/uv/i.test(l.name))){uvw=l;continue;}
-    if(inRegion){const px=layerRGBA(l);if(px){rx.drawImage(toCanvas(px),l.left,l.top);regCount++;}continue;}
+    if(inRegion){const px=l.px;if(px){rx.drawImage(toCanvas(px),l.left,l.top);regCount++;}continue;}
     if(/^base colou?r/i.test(l.name)&&l.soco){S.base=hex(l.soco);baseFound=true;continue;}
     // il primo livello in basso, se è un colore unico su tutta la tela, è la base: diventa il “Colore base” modificabile
-    if(!baseFound&&!S.layers.length){baseFound=true;const c=baseColorOf(l);if(c){S.base=hex(c);continue;}}
+    if(!baseFound&&!S.layers.length){baseFound=true;const c=l.baseColor;if(c){S.base=hex(c);continue;}}
     const top=l.path[0]||l.name;
     // tutto quello che viene dopo il primo gruppo di adesivi/numeri sta sopra i livelli dell'utente; carrozzeria, carbonio e plastiche sotto
     if(!over&&STICKER_RE.test(top)&&!/carbon/i.test(top))over=true;
     const guide=GUIDE_RE.test(l.name)||l.path.some(p=>GUIDE_RE.test(p));
-    const px=layerRGBA(l);if(!px)continue;
-    let any=false;for(let i=3;i<px.rgba.length;i+=4*7){if(px.rgba[i]){any=true;break;}}if(!any)continue;
+    const px=l.px;if(!px||!l.any)continue;
     const id='I'+(S.uid++),cv=toCanvas(px);images[id]={img:cv,w:px.w,h:px.h,url:null,name:l.name};
     const onTop=guide||(over&&!l.path.some(p=>/carbon/i.test(p)));
     for(const g of l.gids){const G=psd.groups[g];if(!S.groups[g])S.groups[g]={name:G.name,parent:G.parent,on:!G.hidden};}
@@ -1457,12 +1609,14 @@ async function importPSD(buf,fname){
     const STD=new Set([0,0xFF0000,0x00FF00,0x0000FF,0xFFFFFF]);
     for(const [v,n] of cnt)if(!STD.has(v)&&n>200){const h='#'+v.toString(16).padStart(6,'0').toUpperCase();const sv=savedCust.find(c=>c.hex===h);addCustomMat(h,sv?sv.n:'Dal template '+h,sv?sv.show:'#'+((v*2654435761)>>>8&0xFFFFFF).toString(16).padStart(6,'0'),true);}
   }
+  perfLog('PSD: livelli e materiali',pnow()-tl,imp+' livelli');
   S.tplName=fname;
   if(uvw){
-    const px=layerRGBA(uvw);const c=mk(N,N);c.getContext('2d').drawImage(toCanvas(px),uvw.left,uvw.top);wireCv=c;wireDark=true;
+    const px=uvw.px;const c=mk(N,N);c.getContext('2d').drawImage(toCanvas(px),uvw.left,uvw.top);wireCv=c;wireDark=true;
     const data=c.getContext('2d').getImageData(0,0,N,N).data;await analyze(data);
   }else toast('Nel PSD non trovo il livello UVW: il riempimento dei pezzi non sarà disponibile.',5000);
   S.axis=2048;hist=[];histPos=-1;commit();dirty=false;projClean();refreshAll();fit();busy(null);guideAfterTemplate();
+  perfLog('Template aperto (totale)',pnow()-t0,fname);
   $('#docinfo').textContent=`${fname} · ${imp} livelli del template · ${regCount?'materiali importati':'nessuna mappa materiali'}`;
   toast('Template aperto. Gli adesivi ufficiali sono bloccati al loro posto; i tuoi livelli vanno sotto o sopra, come vuoi.',4500);
 }
@@ -2142,6 +2296,7 @@ function buildDoc(){
       el('label',{class:'chk',style:'margin-top:10px'},(()=>{const i=el('input',{type:'checkbox'});i.checked=autoGame;i.onchange=()=>{autoGame=i.checked;try{localStorage.setItem('liverylab-autogame',autoGame?'1':'0');}catch(e){}if(autoGame){toast('Dopo il primo “Esporta nel gioco”, ogni modifica viene scritta da sola nella cartella della livrea.',5000);scheduleGame();}};return i;})(),'Aggiorna il gioco da solo dopo ogni modifica'),
       el('p',{class:'note'},'Funziona dopo che hai fatto almeno un “Esporta nel gioco” in questa sessione. Per vedere la livrea sull’auto, tieni LMU aperto nello showroom e premi RELOAD.')));
   }
+  p.append(perfSec());
   p.append(el('div',{class:'sec'},el('h3',{},'Esportare per LMU'),el('p',{class:'note'},FS_OK?'“Esporta nel gioco” scrive customskin.tga (la livrea) e customskin_region.tga (i materiali) direttamente nella cartella della livrea. “Esporta zip” crea gli stessi file in uno zip, se preferisci copiarli a mano.':'“Esporta zip” crea uno zip con customskin.tga (la livrea) e customskin_region.tga (i materiali). Estrai lo zip e copia i file nella cartella delle livree custom della tua auto. Aprendo Livery Lab come file in Chrome o Edge puoi invece leggere e scrivere direttamente nelle cartelle del gioco.')));
 }
 function custMatSec(){
@@ -2166,6 +2321,15 @@ function custMatSec(){
   if(extra.length)sec.append(el('div',{class:'row',style:'flex-wrap:wrap;gap:6px'},el('span',{class:'note',style:'margin:0'},'Usati prima:'),...extra.map(c=>el('button',{class:'btn sm',title:'Aggiungi a questo lavoro',onclick:()=>addCustomMat(c.hex,c.n,c.show)},`${c.n} ${c.hex}`))));
   return sec;
 }
+function perfSec(){
+  const sec=el('details',{class:'sec adv'},el('summary',{},'Prestazioni'));
+  sec.append(el('p',{class:'note'},`Lettura del PSD, riconoscimento dei pezzi, riempimenti e conversione in TGA girano ${wkMode==='Web Worker'?'in un Web Worker: l’interfaccia resta libera mentre lavorano':'nel '+(wkMode||'thread principale')}. Ultimi tempi misurati:`));
+  const rows=PERF.slice(-14).reverse();
+  sec.append(rows.length?el('div',{class:'xkv'},...rows.flatMap(r=>[el('span',{},r.name),el('div',{},r.ms+' ms'+(r.extra?' · '+r.extra:''))])):el('p',{class:'note'},'Ancora niente: apri un template o esporta.'));
+  sec.append(el('button',{class:'btn sm',onclick:async()=>{const t=`Livery Lab ${APP_VERSION} · ${wkMode} · ${navigator.userAgent}\n`+PERF.map(r=>`${new Date(r.t).toLocaleTimeString('it-IT')} ${r.name}: ${r.ms} ms ${r.extra}`).join('\n');
+    try{await navigator.clipboard.writeText(t);toast('Tempi copiati: incollali in una segnalazione.');}catch(e){toast('Non riesco a copiare negli appunti.');}}},'Copia i tempi'));
+  return sec;
+}
 function setLegend(){const lg=$('#legend');lg.hidden=S.mode!=='regions';if(!lg.hidden&&!lg.childElementCount)MATS.filter(m=>m[2]).forEach(m=>lg.append(el('span',{},el('i',{style:`background:${matCol(m[0])}`}),m[1].replace(/ \(.*\)/,''))));}
 $('#vLiv').onclick=()=>{S.mode='livery';setLegend();$('#vLiv').setAttribute('aria-pressed','true');$('#vMat').setAttribute('aria-pressed','false');requestDraw();};
 $('#vMat').onclick=()=>{S.mode='regions';setLegend();$('#vMat').setAttribute('aria-pressed','true');$('#vLiv').setAttribute('aria-pressed','false');requestDraw();if(!regionCv&&!S.layers.some(l=>l.mat&&l.mat!=='keep'))toast('Nessun materiale ancora: imposta “Materiale” nelle proprietà di un livello.');};
@@ -2184,6 +2348,9 @@ async function saveFile(name,data){
   if(dl){try{await dl.save({filename:name,data});toast('Salvato: '+name);}catch(e){toast(e&&e.code==='declined'?'Salvataggio annullato.':'Non riesco a salvare: '+(e&&e.message||e));}return;}
   const blob=data instanceof Blob?data:new Blob([data]),a=el('a',{href:URL.createObjectURL(blob),download:name});document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},5000);
 }
+// lettura dei pixel qui, conversione in TGA (e pulizia dei materiali) nel worker
+async function canvasTGA(cv,pal){const t=pnow(),d=cv.getContext('2d',{willReadFrequently:true}).getImageData(0,0,N,N).data;const tr=pnow()-t;
+  const r=await wcall('tga',{buf:d.buffer,pal},[d.buffer]);perfLog(pal?'Export: TGA materiali':'Export: TGA livrea',tr+r.ms,`lettura pixel ${Math.round(tr)} ms + worker ${Math.round(r.ms)} ms`);return r.tga;}
 function renderTo(fn){const c=mk(N,N),x=c.getContext('2d');fn(x);return c;}
 // TGA 32 bit: scambio rosso e blu lavorando su 32 bit alla volta (molto più veloce che byte per byte)
 function toTGA(c){const d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,N,N).data,src=new Uint32Array(d.buffer,d.byteOffset,NN),px=new Uint32Array(NN);
@@ -2204,10 +2371,15 @@ async function makeZip(files){
   eo.setUint32(0,0x06054b50,true);eo.setUint16(8,files.length,true);eo.setUint16(10,files.length,true);eo.setUint32(12,cdSize,true);eo.setUint32(16,off,true);
   return new Blob([...parts,...cds,eo.buffer],{type:'application/zip'});
 }
-$('#bPng').onclick=async()=>{busy('Preparo il PNG…');await tick();const c=renderTo(drawScene),b=await new Promise(r=>c.toBlob(r,'image/png'));busy(null);await saveFile('livrea_4096.png',b);};
+$('#bPng').onclick=async()=>{busy('Preparo il PNG…');await fillsReady();const c=renderTo(drawScene),b=await new Promise(r=>c.toBlob(r,'image/png'));busy(null);await saveFile('livrea_4096.png',b);};
 async function buildLmuFiles(quiet){
-  const busy_=quiet?()=>{}:busy;busy_('Preparo la livrea…');await tick();const files=[{name:'customskin.tga',data:toTGA(renderTo(drawScene))}];
-  if(hasRegion()){busy_('Preparo i materiali…');await tick();files.push({name:'customskin_region.tga',data:toTGA(renderTo(x=>drawRegions(x,true)))});}
+  const busy_=quiet?()=>{}:busy;busy_('Preparo la livrea…');await fillsReady();const t0=pnow();
+  let t=pnow();const cv=renderTo(drawScene);perfLog('Export: disegno livrea',pnow()-t);
+  const files=[{name:'customskin.tga',data:await canvasTGA(cv,null)}];
+  if(hasRegion()){busy_('Preparo i materiali…');
+    t=pnow();const rc=renderTo(x=>drawRegions(x,true,true));perfLog('Export: disegno materiali',pnow()-t);
+    files.push({name:'customskin_region.tga',data:await canvasTGA(rc,regionPalette())});}
+  perfLog('Export: totale',pnow()-t0,quiet?'automatico':'');
   return files;
 }
 $('#bLmu').onclick=async()=>{
@@ -2230,6 +2402,7 @@ function dialog(title,body,buttons){return new Promise(res=>{
   document.addEventListener('keydown',kd,true);document.body.append(m);const f=m.querySelector('.btn.pri');if(f)f.focus();});}
 async function exportCheck(o){
   if(!expCheck)return true;
+  await fillsReady();
   const names=exportNames(),own=S.layers.filter(l=>!l.fromTemplate).length,warn=[];
   if(!own&&S.baseMat==='keep')warn.push('Non hai ancora aggiunto niente: esporti il template così com’è.');
   if(!regionCv)warn.push('Il template non ha una mappa materiali: '+(names.length>1?'nel file materiali conta solo quello che hai assegnato tu.':'esporto solo la livrea, senza file dei materiali.'));
@@ -2441,7 +2614,7 @@ async function autosave(){
   if(asBusy){scheduleSave();return;}
   if(!S.layers.length&&!wireCv)return;
   const d=lib||await idb();if(!d||!d.objectStoreNames.contains('autosave'))return;
-  asBusy=true;
+  asBusy=true;const ta=pnow();
   try{
     const imgs={};
     for(const id in images){if(!usesImg(id))continue;const im=images[id];
@@ -2449,11 +2622,11 @@ async function autosave(){
       imgs[id]={blob:im.blob,name:im.name};}
     if(wireCv&&!wireBlob)wireBlob=await canvasBlob(wireCv);
     if(regionCv&&!regionBlob)regionBlob=await canvasBlob(regionCv);
-    if(!thumbBlob||Date.now()-thumbAt>20000){try{thumbBlob=await makeThumb();thumbAt=Date.now();}catch(e){}}
+    if(!thumbBlob||Date.now()-thumbAt>20000){try{await fillsReady();thumbBlob=await makeThumb();thumbAt=Date.now();}catch(e){}}
     const state=snapshot();
     const rec={when:Date.now(),tpl:S.tplName,name:S.projName||'',state,images:imgs,wire:wireCv?wireBlob:null,wireDark,region:regionCv?regionBlob:null,thumb:thumbBlob,unsaved:projDirty,saved:projSaved,n:userLayers(state),
       ref:REF.src&&REF.blob?{blob:REF.blob,name:REF.name,cfg:{on:REF.on,op:REF.op,above:REF.above,dx:REF.dx,dy:REF.dy,sc:REF.sc}}:null};
-    await idbReq(d,'readwrite',st=>st.put(rec,docId));
+    await idbReq(d,'readwrite',st=>st.put(rec,docId));perfLog('Salvataggio automatico',pnow()-ta);
     // tengo solo i più recenti
     const all=await listAutosaves(true);for(const r of all.slice(MAXREC))await idbReq(d,'readwrite',st=>st.delete(r.key));
     $('#saved').textContent=`Copia nel browser alle ${hhmm()}`;$('#saved').title='Salvataggio automatico: lo ritrovi in File → Lavori recenti anche dopo aver chiuso il browser.';
@@ -2565,9 +2738,10 @@ $('#bRecent').onclick=()=>{$('#fileMenu').open=false;openRecent();};
 $('#unsaved').onclick=()=>saveProject(false);$('#unsaved').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();saveProject(false);}};
 
 /* ================= versione, novità e aggiornamenti ================= */
-const APP_VERSION='2.3.2';
+const APP_VERSION='2.4';
 const UPD_CHANNEL='https://raw.githubusercontent.com/KubaMovitech/livery-lab/main/';   // cartella con version.json e index.html
 const CHANGELOG=[
+ {v:'2.4',d:'30/10/2026',items:['Più fluida: lettura del PSD, riconoscimento di pezzi e pannelli, riempimenti e conversione in TGA lavorano in un Web Worker, in parallelo all’interfaccia. Mentre apri un template pulsanti, menu e vista continuano a rispondere (prima si bloccavano fino a 6 secondi).','Aprire un template è circa il 30–50% più veloce; i concept con tanti pezzi non bloccano più l’interfaccia, e l’esportazione la blocca per circa un quinto del tempo di prima.','Contorni dei pezzi più precisi: lo spessore scelto è quello vero, misurato con la distanza esatta dal bordo.','Documento → Prestazioni: gli ultimi tempi misurati (apertura, riempimenti, export) e “Copia i tempi” per una segnalazione.','Se il browser non permette il Web Worker, tutto funziona come prima nel thread principale.']},
  {v:'2.3.2',d:'29/10/2026',items:['Nella vista Materiali i materiali personalizzati si vedono con il loro colore vero (per esempio #000400 quasi nero), come nel file che va al gioco.','“Evidenzia” accanto al materiale, in Documento → Materiali personalizzati, lo mostra invece con un colore ben visibile per distinguerlo dalla Base.']},
  {v:'2.3.1',d:'29/10/2026',items:['Materiali personalizzati: un colore region esatto, per esempio nero #000400 per l’oro, con nome e colore di anteprima (Documento → Materiali personalizzati, pronto il pulsante “Oro #000400”). Compare in tutti i menu Materiale: livelli, gruppi, contorni e base.','Nel customskin_region.tga il colore viene scritto esatto: i bordi sfumati vanno al materiale più vicino, senza creare colori nuovi.','Se il template ha colori region diversi dai 5 standard, vengono tenuti come materiali personalizzati invece di essere appiattiti.']},
  {v:'2.3',d:'29/10/2026',items:['La prima livrea in 5 passi: Scegli l’auto → Apri il template → Scegli i colori → Personalizza → Esporta. Una guida in basso a sinistra ti accompagna con i pulsanti giusti a ogni passo; si chiude e si riapre con “Guida” in alto.','Strumenti essenziali: nella barra a sinistra selezione, riempimento, forme, testo e loghi. Lama, lazo, pennello, gomma, contagocce ed estrai colore con “⋯” (le scorciatoie funzionano sempre).','Nelle proprietà materiali, maschere ed effetti sono in fondo, richiusi: si aprono da soli quando sono attivi.','Lavori recenti: gli ultimi 12 lavori restano nel browser, ognuno con la sua miniatura (File → Lavori recenti, e nella schermata iniziale). Aprire un altro template non cancella più il lavoro precedente.','In basso “● Modifiche non salvate” finché non salvi il progetto (clic o Ctrl+S); il pallino compare anche nel titolo della scheda.','Prima di esportare: template usato, file che vengono creati con anteprima, cartella di destinazione e file che verranno sostituiti. Dopo, il promemoria per lo showroom di LMU (RELOAD).','Testi piccoli più grandi e più leggibili.','Il file dei materiali viene esportato anche quando hai cambiato solo il materiale della base.']},
@@ -2644,7 +2818,8 @@ setTimeout(()=>updCheck(true),3000);setInterval(()=>updCheck(true),3600000);
 new ResizeObserver(resizeView).observe(view);
 FONTS.slice(0,4).forEach(ensureFont);
 buildTools();buildOpts();setHint();resizeView();fit();commit();dirty=false;projDirty=false;refreshPanels();buildLib();libLoad().then(offerResume);
-window.__LL={toTGA,renderTo,render,requestDraw,refreshAll,commit,autosave,buildLmuFiles,APP_VERSION,REF,loadRef,extractColor,hitLayer,hitTest,selIds,updCheck,pickColor,xformHandles,autosave,readAutosave,resumeAutosave,autoExport,exportToGame,openGameTemplates,S,images,get LAB(){return LAB;},fillCache,drawScene,drawRegions,labelAt,readPSD};
+wkReady.then(()=>buildDoc());
+window.__LL={PERF,fillsReady,toTGA,renderTo,render,requestDraw,refreshAll,commit,autosave,buildLmuFiles,APP_VERSION,REF,loadRef,extractColor,hitLayer,hitTest,selIds,updCheck,pickColor,xformHandles,autosave,readAutosave,resumeAutosave,autoExport,exportToGame,openGameTemplates,S,images,get LAB(){return LAB;},fillCache,drawScene,drawRegions,labelAt};
 })();
 </script>
 </body>

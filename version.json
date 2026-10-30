@@ -1,12 +1,13 @@
 {
- "version": "2.3.2",
- "date": "2026-10-29",
+ "version": "2.4",
+ "date": "2026-10-30",
  "notes": [
-  "Materiali personalizzati con il loro colore vero nella vista Materiali",
-  "Evidenzia per distinguerli dalla Base"
+  "Lettura PSD, pezzi, riempimenti ed export in un Web Worker: l'interfaccia non si blocca più",
+  "Apertura dei template più veloce",
+  "Documento → Prestazioni con i tempi misurati"
  ],
  "app": {
   "file": "index.html",
-  "sha256": "c4ed34ce467f59a3e57b3c1709d1983ddd5fd122b700fa6dc676280dbc830c35"
+  "sha256": "5d03de3ed206cd5d0e5d846c77987a5e99fc9c553ace7a047087c9643d26e42a"
  }
 }
