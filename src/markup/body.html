@@ -8,7 +8,9 @@
     <button class="btn" id="bUndo" title="Annulla (Ctrl+Z)">Annulla</button>
     <button class="btn" id="bRedo" title="Ripristina (Ctrl+Shift+Z)">Ripristina</button>
     <button class="btn" id="bGuide" title="Mostra o nasconde la guida passo passo" aria-pressed="false">Guida</button>
+    <button class="btn studio-open" id="bStudio" title="Concept, trame e palette">✦ Studio</button>
     <div class="sp"></div>
+    <button class="btn" id="bFocus" aria-pressed="false" aria-controls="workspaceSide" title="Nascondi i pannelli per dare più spazio alla tela">Solo tela</button>
     <details class="menu" id="fileMenu"><summary class="btn">File ▾</summary>
       <div class="mpop" role="menu">
         <button class="mi" id="bSave" role="menuitem">Salva progetto <kbd>Ctrl+S</kbd></button>
@@ -32,7 +34,7 @@
     <canvas id="view" aria-label="Tela della livrea"></canvas>
     <div class="float opts" id="opts"></div>
     <div class="float empty" id="empty">
-      <h2>La tua prima livrea in 5 passi</h2>
+      <span class="eyebrow">Il tuo prossimo progetto</span><h2>La tua livrea. La tua firma.</h2>
       <ol class="path" aria-label="Percorso"><li class="on">Scegli l’auto</li><li>Apri il template</li><li>Scegli i colori</li><li>Personalizza</li><li>Esporta</li></ol>
       <div class="estep"><b>1 · Scegli l’auto</b><p class="note" style="margin:0">In Le Mans Ultimate ogni auto ha il suo template PSD, nella cartella <b style="display:inline">Support/LiveryTemplates</b> del gioco (una cartella per auto).</p></div>
       <div class="estep"><b>2 · Apri il template</b><p class="note" style="margin:0 0 8px">L’editor prende da solo wireframe, pezzi, adesivi ufficiali e mappa dei materiali. Puoi anche trascinare il file qui.</p>
@@ -54,13 +56,13 @@
       <button class="btn sm" id="bWire" aria-pressed="true">Linee</button>
       <button class="btn sm" id="bSnap" aria-pressed="true" title="Calamita: aggancia i livelli al centro, all’asse e agli altri livelli mentre li sposti (tieni Ctrl per sganciare)">Calamita</button>
       <button class="btn sm" id="bPrev" aria-pressed="false" title="Anteprima come in gioco: senza linee, guide e selezione (G)">Anteprima</button>
-      <button class="btn sm" id="bHelp" aria-pressed="true" title="Mostra o nascondi i suggerimenti">?</button>
+      <button class="btn sm" id="bHelp" aria-pressed="false" title="Mostra o nascondi i suggerimenti">?</button>
       <div class="legend" id="legend" hidden></div>
     </div>
     <div class="float hint" id="hint"></div>
   </main>
 
-  <aside class="side">
+  <aside class="side" id="workspaceSide" aria-label="Pannelli di lavoro">
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" id="tabL" aria-selected="true">Livelli</button>
       <button class="tab" role="tab" id="tabP" aria-selected="false">Proprietà</button>

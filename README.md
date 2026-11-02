@@ -58,6 +58,18 @@ Il numero di versione in alto apre **Novità e aggiornamenti**. L'app controlla 
 
 Per pubblicare una versione: aggiorna `APP_VERSION` e `CHANGELOG` in `src/app/updates.js`, ricostruisci `index.html` (vedi sotto), poi `sh release.sh <versione> "nota" …` controlla che `index.html` sia aggiornato e riscrive `version.json` con il suo SHA-256. I due file vanno committati insieme.
 
+## Studio creativo
+
+Il pulsante **Studio** apre una raccolta divisa in Concept, Trame, Grafiche, Palette e Risorse. La ricerca filtra le anteprime nella categoria aperta.
+
+- **8 palette da gara** aggiornano i tre colori dei concept e i colori delle nuove trame, senza ricolorare i livelli esistenti.
+- **8 nuovi concept**: Apex flow, Forged performance, Endurance club, Shattered, Pulse, Interference, Hyper mesh e Team weave.
+- **8 nuove trame**: carbonio forgiato, flusso aerodinamico, maglia tecnica, fratture, fasce endurance, mezzotono dinamico, onde di interferenza e tessuto tecnico.
+- In **Trame**, scegli la destinazione: prossime forme e riempimenti, base della livrea o un livello forma/riempimento selezionato. Colori, scala e rotazione si regolano nelle proprietà. Le modifiche alla livrea si annullano con Ctrl+Z.
+- Le proprietà includono anteprime rapide delle trame e **6 nuovi stili** coordinati.
+
+**Solo tela** nasconde i pannelli; **Mostra pannelli** li ripristina. La guida si può ridurre e i suggerimenti estesi si aprono con **?**.
+
 ## Sviluppo
 
 L'app si distribuisce come **un solo file**, `index.html`, ma il codice sta diviso in moduli in `src/`. `index.html` è generato: non va modificato a mano.
@@ -77,6 +89,8 @@ npm install && npm run check     # tutto quanto sopra più l'isolamento dei modu
 - `live`: le variabili condivise che altri moduli cambiano (per esempio `live.wireCv`, `live.LAB`), lette e scritte attraverso il collegamento.
 
 Il collegamento sta nel file con lo stesso nome in `src/app/`: passa le dipendenze e prende quello che il modulo offre agli altri. `npm run check` (dopo `npm install`) controlla con `tools/check-modules.js` che un modulo isolato non usi nomi che non riceve: una dipendenza dimenticata diventa un errore prima della release, non durante l'uso.
+
+Prova funzionale dello Studio senza template proprietari (ricerca, palette, trame, annulla, salvataggio/riapertura ed export): `node tools/studio-smoke.js`. Usa il Chromium di Playwright; per un browser già installato, per esempio, `CHROMIUM_PATH=/usr/bin/chromium node tools/studio-smoke.js`.
 
 Prova rapida su un template vero (serve Playwright; i template stanno nella cartella di LMU): `node tools/smoke.js "<…>/Template_….psd"` apre il template, applica un concept, esporta i due TGA e stampa i tempi.
 

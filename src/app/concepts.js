@@ -1,7 +1,7 @@
 /* ================= concept pronti =================
    Funzionano su qualunque auto: usano le trame (che non dipendono dalla forma dei pezzi)
    o i pezzi riconosciuti dal wireframe (carrozzeria principale e dettagli). */
-let CC={a:'#C0202B',b:'#1B1D20',c:'#F4F5F0'};try{Object.assign(CC,JSON.parse(localStorage.getItem('liverylab-concept')||'{}'));}catch(e){}
+let CC={a:'#26E6D4',b:'#0B1726',c:'#F1F5F9'};try{Object.assign(CC,JSON.parse(localStorage.getItem('liverylab-concept')||'{}'));}catch(e){}
 function piecesSplit(){
   if(!LAB||!LAB.iarea)return null;const ids=[];for(let k=1;k<LAB.iarea.length;k++)if(LAB.iarea[k]>=200)ids.push(k);
   ids.sort((a,b)=>LAB.iarea[b]-LAB.iarea[a]);const tot=ids.reduce((s,k)=>s+LAB.iarea[k],0);let acc=0;const main=[],det=[];
@@ -13,7 +13,27 @@ const fullRect=()=>rectPts({x:0,y:0},{x:N,y:N});
 function cLayerRect(name,color,paint,opacity=1,extra={}){const l=newShape(fullRect(),false);Object.assign(l,{name:'Concept · '+name,color,paint,opacity},extra);return l;}
 function cLayerFill(name,seeds,color,paint,extra={}){return Object.assign({type:'fill',name:'Concept · '+name,mode:'island',seeds,color,paint:paint||{pat:'none',bg:'#1B1D20',scale:1,angle:0},grow:3,edge:{on:false,only:false,color:'#FFFFFF',width:10,pos:'inside'}},extra);}
 const P_=(pat,bg,scale=1,angle=0,o={})=>Object.assign({pat,bg,scale,angle},o);
+const RACE_PALETTES=[
+  {n:'Apex cyan',colors:['#26E6D4','#0B1726','#F1F5F9']},
+  {n:'Volt racing',colors:['#CAEF38','#141E2B','#F6F7EB']},
+  {n:'Rosso corsa',colors:['#F04452','#161922','#F4EDE0']},
+  {n:'Ultraviolet',colors:['#9564FF','#15122B','#3AF0DA']},
+  {n:'Gulf sunset',colors:['#72C9E2','#142E46','#FF873E']},
+  {n:'Midnight gold',colors:['#D8B56D','#10141D','#F1E8D3']},
+  {n:'Pink velocity',colors:['#FF529C','#191B32','#72E6FF']},
+  {n:'Alpine frost',colors:['#DCECF7','#183F68','#34BDDB']}
+];
+function useRacePalette(pl){[CC.a,CC.b,CC.c]=pl.colors;S.act.color=CC.a;S.act.bg=CC.b;try{localStorage.setItem('liverylab-concept',JSON.stringify(CC));}catch(e){}buildOpts();buildLib();toast('Palette “'+pl.n+'” pronta per concept e trame.');}
 const CONCEPTS=[
+  {k:'apex',n:'Apex flow',d:'Linee aerodinamiche, fondo profondo e accenti a contrasto.',tag:'Signature',make:c=>({base:c.b,layers:[cLayerRect('Apex flow',c.a,P_('flow',c.b,3.6,-24),.9)]})},
+  {k:'forged',n:'Forged performance',d:'Frammenti di carbonio forgiato nei tuoi colori.',tag:'Carbon',make:c=>({base:c.b,basePaint:P_('forged',c.b,2.4),baseColor:c.a})},
+  {k:'endurance',n:'Endurance club',d:'Fasce larghe e filetti sottili, ispirazione endurance.',tag:'Heritage',make:c=>({base:c.b,layers:[cLayerRect('Fasce endurance',c.a,P_('raceband',c.b,7,-28))]})},
+  {k:'shattered',n:'Shattered',d:'Fratture geometriche ad alto contrasto.',tag:'Bold',make:c=>({base:c.b,layers:[cLayerRect('Fratture',c.a,P_('fracture',c.b,4,12))]})},
+  {k:'pulse',n:'Pulse',d:'Mezzotono variabile per una livrea dal ritmo deciso.',tag:'Graphic',make:c=>({base:c.b,layers:[cLayerRect('Pulse',c.a,P_('halftone',c.b,3.5,-20))]})},
+  {k:'interference',n:'Interference',d:'Onde sottili e ipnotiche su una base scura.',tag:'Signature',make:c=>({base:c.b,layers:[cLayerRect('Interferenza',c.a,P_('contour',c.b,4,-15),.8)]})},
+  {k:'techmesh',n:'Hyper mesh',d:'Maglia diagonale fine e dettagli nel terzo colore.',tag:'Technical',pieces:true,make:(c,sp)=>({base:c.b,basePaint:P_('mesh',c.b,3),baseColor:c.a,layers:[cLayerFill('Accenti',sp.det,c.c)]})},
+  {k:'weave',n:'Team weave',d:'Trama tecnica bicolore, ispirata ai tessuti da gara.',tag:'Technical',make:c=>({base:c.b,basePaint:P_('crosshatch',c.b,2.8),baseColor:c.a})},
+
   {k:'two',n:'Bicolore',d:'Carrozzeria nel colore 1, dettagli nel colore 2.',pieces:true,make:(c,sp)=>({base:c.a,layers:[cLayerFill('Dettagli',sp.det,c.b)]})},
   {k:'carbon',n:'Carbonio e colore',d:'Tutto in carbonio vero, la carrozzeria principale verniciata.',pieces:true,make:(c,sp)=>({base:'#2b2f36',basePaint:P_('carbon','#0d0f12',1.4),baseMat:'carbon',layers:[cLayerFill('Carrozzeria',sp.main,c.a,null,{mat:'paint'})]})},
   {k:'outline',n:'Contorni',d:'Colore 1 con ogni pezzo bordato nel colore 2.',pieces:true,make:(c,sp)=>({base:c.a,layers:[cLayerFill('Contorni',sp.main.concat(sp.det),c.b,null,{edge:{on:true,only:true,color:c.b,width:14,pos:'inside'}})]})},
@@ -41,13 +61,13 @@ function applyConcept(cp){
   if(S.layers.some(l=>!l.fromTemplate)&&!confirm(`Applico “${cp.n}”: cambia la base e aggiunge i suoi livelli sopra a quelli che hai già. Si annulla con Ctrl+Z.`))return;
   const r=cp.make(CC,sp);
   // con le trame “colore su fondo”, il colore principale è quello della trama e il fondo è la base
-  S.base=r.baseColor||r.base;S.basePaint=r.basePaint||{pat:'none',bg:'#1B1D20',scale:1,angle:0};if(r.baseColor)S.basePaint.bg=r.base;if(r.baseMat)S.baseMat=r.baseMat;
+  S.base=r.baseColor||r.base;S.basePaint=r.basePaint||{pat:'none',bg:'#1B1D20',scale:1,angle:0};if(r.baseColor)S.basePaint.bg=r.base;S.baseMat=r.baseMat||'keep';
   const ti=S.layers.findIndex(x=>x.onTop);let at=ti>=0?ti:S.layers.length;
   for(const l of r.layers||[]){l.id=newId();l.visible=true;l.opacity=l.opacity??1;l.mat=l.mat||'keep';S.layers.splice(at++,0,l);}
   S.sel=null;S.msel=[];commit();refreshAll();toast(`Concept “${cp.n}” applicato: ogni pezzo resta modificabile nei livelli.`,4500);
 }
 function conceptPreview(cp){
-  const c=mk(96,64),x=c.getContext('2d'),sp={main:[],det:[]};let r;try{r=cp.make(CC,sp);}catch(e){r={base:CC.a};}
+  const c=mk(288,192),x=c.getContext('2d'),sp={main:[],det:[]};x.scale(3,3);let r;try{r=cp.make(CC,sp);}catch(e){r={base:CC.a};}
   const bp=r.basePaint||{pat:'none'},bc=r.baseColor||r.base;x.fillStyle=paintStyle(x,r.baseColor?Object.assign({},bp,{bg:r.base,scale:(bp.scale||1)*.35}):Object.assign({},bp,{scale:(bp.scale||1)*.35}),bc,0,0,{x0:0,y0:0,x1:96,y1:64});x.fillRect(0,0,96,64);
   for(const l of r.layers||[]){x.globalAlpha=l.opacity??1;if(l.type==='shape'){x.fillStyle=paintStyle(x,Object.assign({},l.paint,{scale:(l.paint.scale||1)*.35}),l.color,0,0,{x0:0,y0:0,x1:96,y1:64});x.fillRect(0,0,96,64);}
     else{const e=l.edge&&l.edge.on&&l.edge.only;x.fillStyle=paintStyle(x,Object.assign({},l.paint,{scale:.35}),l.color,0,0,{x0:0,y0:0,x1:96,y1:64});x.strokeStyle=l.edge&&l.edge.on?l.edge.color:l.color;x.lineWidth=3;

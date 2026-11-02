@@ -1,5 +1,6 @@
 /* ================= guida: scegli auto → template → colori → personalizza → esporta ================= */
 let guideStep=0,guideOn=true;try{guideOn=localStorage.getItem('liverylab-guide')!=='0';}catch(e){}
+let guideCompact=false;
 const GSTEPS=['Auto','Template','Colori','Personalizza','Esporta'];
 function hasDoc(){return !!(wireCv||S.layers.length);}
 function guideAfterTemplate(){if(guideStep<2)guideStep=2;buildGuide();}
@@ -20,21 +21,23 @@ function buildGuide(){
       el('div',{class:'row',style:'flex-wrap:wrap;gap:4px'},el('label',{class:'ccol'},bc,el('span',{},'Base')),
         ...curPal().slice(0,8).map(c=>el('button',{class:'sw',style:`background:${c}`,title:'Base '+c.toUpperCase(),'aria-label':'Base '+c,onclick:()=>{S.base=c;pushRecent(c);commit();refreshAll();buildGuide();}}))),
       el('p',{class:'note'},'Palette: '+(palSel>=0&&palettes[palSel]?palettes[palSel].name:'colori standard')+' (si cambia nella barra in alto o in Libreria). Oppure parti da un concept pronto:'),
-      el('div',{class:'gbtns'},...qc.map(cp=>b(cp.n,()=>applyConcept(cp))),b('Tutti i concept…',()=>{setTab('B');})),
+      el('div',{class:'gbtns'},...qc.map(cp=>b(cp.n,()=>applyConcept(cp))),b('Tutti i concept…',()=>openStudio('concepts'))),
       el('p',{class:'note'},'Il materiale della base (metallizzato, cromo…) è in Documento: puoi pensarci dopo.')];
   }else if(guideStep===3){
     body=[el('h3',{},'4 · Personalizza'),el('p',{class:'note'},'Colora pezzi e pannelli, aggiungi sponsor, numero e grafiche. Ogni cosa diventa un livello: selezionalo per cambiarne colore e trama in Proprietà.'),
       el('div',{class:'gbtns'},b('Colora un pezzo (F)',()=>setTool('island'),true),b('Colora un pannello (M)',()=>setTool('panel')),
         b('Aggiungi un logo',()=>$('#fImg').click()),b('Scrivi testo o numero (T)',()=>setTool('text')),
-        b('Grafiche pronte',()=>{setTab('B');setTimeout(()=>{const e=$('#secGraphics');if(e)e.scrollIntoView({behavior:'smooth'});},50);}),b('Forme (R, O)',()=>setTool('rect'))),
+        b('Grafiche pronte',()=>{openStudio('graphics');setTimeout(()=>{const e=$('#secGraphics');if(e)e.scrollIntoView({behavior:'smooth'});},50);}),b('Forme (R, O)',()=>setTool('rect'))),
       el('p',{class:'note'},'Strumenti avanzati (lazo, pennello, estrai colore…) con “⋯” in fondo alla barra a sinistra.')];
   }else{
     body=[el('h3',{},'5 · Esporta'),el('p',{class:'note'},FS_OK?'“Esporta nel gioco” scrive la livrea e i materiali nella cartella di LMU. Prima ti mostro cosa creo e dove.':'Scarica lo zip con la livrea e i materiali e copialo nella cartella della livrea di LMU.'),
       el('div',{class:'gbtns'},FS_OK?b('Esporta nel gioco',()=>exportToGame(),true):null,b(FS_OK?'Scarica zip':'Scarica lo zip per LMU',()=>$('#bLmu').click(),!FS_OK),b('Salva progetto',()=>saveProject(false))),
       el('p',{class:'note'},'Nello showroom di LMU premi RELOAD per vedere la livrea sull’auto.')];
   }
-  g.innerHTML='';g.append(st,...body,el('div',{class:'gnav'},guideStep>2?b('‹ Indietro',()=>{guideStep--;buildGuide();}):null,el('span',{style:'flex:1'}),
-    guideStep<4?b('Avanti ›',()=>{guideStep++;buildGuide();},true):null,el('button',{class:'ib',title:'Chiudi la guida (riaprila con “Guida” in alto)','aria-label':'Chiudi la guida',onclick:()=>setGuide(false)},'✕')));
+  g.innerHTML='';g.classList.toggle('compact',guideCompact);
+  const toggle=el('button',{class:'guide-toggle','aria-expanded':String(!guideCompact),onclick:()=>{guideCompact=!guideCompact;buildGuide();}},el('span',{},'Guida · '+GSTEPS[guideStep]),el('span',{},guideCompact?'Espandi +':'Riduci −'));
+  g.append(toggle,el('div',{class:'guide-body',hidden:guideCompact},st,...body,el('div',{class:'gnav'},guideStep>2?b('‹ Indietro',()=>{guideStep--;buildGuide();}):null,el('span',{style:'flex:1'}),
+    guideStep<4?b('Avanti ›',()=>{guideStep++;buildGuide();},true):null,el('button',{class:'ib',title:'Chiudi la guida (riaprila con “Guida” in alto)','aria-label':'Chiudi la guida',onclick:()=>setGuide(false)},'✕'))));
 }
 // sopra la barra dello zoom, che può andare su due righe
 function placeGuide(){const g=$('#guide'),h=$('.hud');if(g&&h)g.style.bottom=(h.offsetHeight+20)+'px';}

@@ -19,17 +19,18 @@ const TOOLS=[['select','Seleziona e sposta','v'],null,['island','Riempi un pezzo
 // all'inizio solo gli strumenti essenziali; gli altri restano con le scorciatoie o con “⋯”
 const ESSENTIAL=new Set(['select','island','panel','rect','ellipse','text','image','pan']);
 let advTools=false;try{advTools=localStorage.getItem('liverylab-advtools')==='1';}catch(e){}
+const TOOL_LABELS={select:'Seleziona',island:'Pezzo',panel:'Pannello',free:'Lama',lasso:'Lazo',brush:'Pennello',eraser:'Gomma',rect:'Rettangolo',ellipse:'Ellisse',text:'Testo',image:'Logo',pick:'Colore',wand:'Estrai',pan:'Sposta vista'};
 function buildTools(){
   const box=$('#tools');box.innerHTML='';
   const list=TOOLS.filter(t=>!t||advTools||ESSENTIAL.has(t[0])||S.tool===t[0]).filter((t,i,a)=>t||(i>0&&a[i-1]));
   for(const t of list){if(!t){box.append(el('div',{class:'tsep'}));continue;}
     const [id,tip,k]=t;const b=el('button',{class:'tool',title:`${tip} (${k.toUpperCase()})`,'aria-label':tip,'aria-pressed':String(S.tool===id),onclick:()=>{if(id==='image')$('#fImg').click();else setTool(id);}});
-    b.innerHTML=`<svg viewBox="0 0 24 24">${ICONS[id]}</svg><kbd>${k.toUpperCase()}</kbd>`;box.append(b);}
+    b.innerHTML=`<svg viewBox="0 0 24 24">${ICONS[id]}</svg><kbd>${k.toUpperCase()}</kbd><span class="tool-label">${TOOL_LABELS[id]}</span>`;box.append(b);}
   box.append(el('button',{class:'tool more','aria-pressed':String(advTools),title:advTools?'Mostra solo gli strumenti essenziali':'Strumenti avanzati: lama, lazo, pennello, gomma, contagocce, estrai colore','aria-label':'Strumenti avanzati',
-    onclick:()=>{advTools=!advTools;try{localStorage.setItem('liverylab-advtools',advTools?'1':'0');}catch(e){}buildTools();}},advTools?'−':'⋯'));
+    onclick:()=>{advTools=!advTools;try{localStorage.setItem('liverylab-advtools',advTools?'1':'0');}catch(e){}buildTools();}},el('span',{},advTools?'−':'⋯'),el('span',{class:'tool-label'},advTools?'Meno':'Altri')));
 }
 function setTool(t){S.tool=t;if(t!=='free'&&!(drawing&&drawing.lasso))drawing=null;buildTools();buildOpts();setHint();view.style.cursor='';requestDraw();}
-let showHints=true;try{showHints=localStorage.getItem('liverylab-hints')!=='0';}catch(e){}
+let showHints=false;try{showHints=localStorage.getItem('liverylab-hints')==='1';}catch(e){}
 function setHint(){
   const H={select:'Clic per selezionare. Gli angoli del riquadro ridimensionano, il pallino in alto ruota (Maiusc per scatti di 15°). Trascina i punti di una forma per modellarla: doppio clic su un punto lo rende angolo netto, doppio clic sul bordo aggiunge un punto, clic destro lo toglie. Maiusc+clic seleziona più livelli; mentre trascini la calamita li aggancia (Ctrl per sganciare). I pallini sui lati stirano in larghezza o altezza. Frecce: sposta di 1 px (Maiusc 10 px). Ctrl+D duplica.',
     island:LAB?'Clic su un pezzo per colorarlo tutto. Finché il livello è selezionato, altri clic aggiungono pezzi; un clic su un pezzo già colorato lo toglie. Cambiando colore, o con “Nuovo livello” (Esc), il prossimo clic crea un livello nuovo.':'Apri prima il template PSD: i pezzi si ricavano dal wireframe.',
@@ -45,6 +46,7 @@ function setHint(){
 }
 function buildOpts(){
   const o=$('#opts');o.innerHTML='';const t=S.tool;
+  o.append(el('span',{class:'active-tool'},TOOL_LABELS[t]||'Strumento'));
   const col=el('input',{type:'color',class:'cbtn',value:S.act.color,'aria-label':'Colore attivo'});col.addEventListener('input',()=>{S.act.color=col.value;});
   // cambiare colore con un riempimento selezionato vuol dire “nuovo colore”: il prossimo clic crea un livello nuovo
   const newColor=()=>{const c=selLayer();if((t==='island'||t==='panel')&&c&&c.type==='fill'){S.sel=null;refreshPanels();requestDraw();buildOpts();}};

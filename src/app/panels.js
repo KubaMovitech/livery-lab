@@ -1,8 +1,17 @@
 /* ================= pannelli ================= */
-function setTab(t){for(const k of['L','P','B','D']){$('#pane'+k).hidden=k!==t;$('#tab'+k).setAttribute('aria-selected',String(k===t));}if(t==='B')buildLib();}
+function setWorkspaceFocus(on){
+  document.querySelector('.app').classList.toggle('canvas-focus',on);
+  $('#workspaceSide').hidden=on;
+  $('#bFocus').setAttribute('aria-pressed',String(on));
+  $('#bFocus').textContent=on?'Mostra pannelli':'Solo tela';
+  $('#bFocus').title=on?'Ripristina i pannelli di lavoro':'Nascondi i pannelli per dare più spazio alla tela';
+}
+$('#bFocus').onclick=()=>setWorkspaceFocus($('#bFocus').getAttribute('aria-pressed')!=='true');
+function setTab(t){setWorkspaceFocus(false);for(const k of['L','P','B','D']){$('#pane'+k).hidden=k!==t;$('#tab'+k).setAttribute('aria-selected',String(k===t));}if(t==='B')buildLib();}
+$('#bStudio').onclick=()=>{setTab('B');$('#paneB').scrollTop=0;};
 $('#tabL').onclick=()=>setTab('L');$('#tabP').onclick=()=>setTab('P');$('#tabB').onclick=()=>setTab('B');$('#tabD').onclick=()=>setTab('D');
 function refreshAll(){refreshPanels();requestDraw();}
-function refreshPanels(){buildLayers();buildProps();buildDoc();$('#empty').hidden=!!(wireCv||S.layers.length);if(typeof buildGuide==='function'){buildGuide();updUnsaved();}}
+function refreshPanels(){buildLayers();buildProps();buildDoc();if(!$('#paneB').hidden)buildLib();$('#empty').hidden=!!(wireCv||S.layers.length);if(typeof buildGuide==='function'){buildGuide();updUnsaved();}}
 function deleteLayer(id){const l=getLayer(id);if(l&&l.fromTemplate&&!confirm(`“${l.name}” arriva dal template ufficiale. Lo elimino lo stesso?`))return;S.layers=S.layers.filter(x=>x.id!==id);if(S.sel===id)S.sel=null;commit();refreshAll();}
 function moveLayer(id,dir){const i=S.layers.findIndex(l=>l.id===id),j=i+dir;if(j<0||j>=S.layers.length)return;[S.layers[i],S.layers[j]]=[S.layers[j],S.layers[i]];commit();refreshAll();}
 function deleteLayers(ids){const L=ids.map(getLayer).filter(Boolean);if(L.some(l=>l.fromTemplate)&&!confirm('Tra i livelli selezionati ce ne sono del template ufficiale. Li elimino lo stesso?'))return;
@@ -158,6 +167,7 @@ function paintSec(l,title='Colore e trama'){
   return el('div',{class:'sec'},el('h3',{},title),swatchRow(c=>{l.color=c;commit();refreshAll();}),
     colorCtl('Colore',()=>l.color,v=>{l.color=v;}),
     selectCtl('Trama',PATS,()=>P.pat,v=>{P.pat=v;}),
+    patternSwatches(P,l.color),
     isGrad(P)?colorCtl('Colore finale',()=>P.c2||'#006B3C',v=>{P.c2=v;}):null,
     P.pat==='grad3'?colorCtl('Colore centrale',()=>P.c3||'#C9A24B',v=>{P.c3=v;}):null,
     isGrad(P)?rangeCtl('Direzione',()=>P.angle||0,v=>{P.angle=v;},0,360,1,v=>v+'°'):null,
@@ -165,6 +175,10 @@ function paintSec(l,title='Colore e trama'){
     P.pat!=='none'&&P.pat!=='image'&&!isGrad(P)?colorCtl('Fondo trama',()=>P.bg,v=>{P.bg=v;}):null,
     P.pat!=='none'&&!isGrad(P)?rangeCtl('Scala',()=>Math.round(P.scale*100),v=>{P.scale=v/100;},25,600,1,v=>v+'%'):null,
     P.pat!=='none'&&!isGrad(P)?rangeCtl('Rotazione',()=>P.angle,v=>{P.angle=v;},0,180,1,v=>v+'°'):null);
+}
+function patternSwatches(P,color){
+  const keys=['none','forged','flow','raceband','halftone','fracture','contour','mesh'];
+  return el('div',{class:'pattern-swatches',role:'group','aria-label':'Trame rapide'},...keys.map(k=>{const c=mk(72,48),x=c.getContext('2d');x.fillStyle=paintStyle(x,{pat:k,bg:P.bg||'#111827',scale:.3,angle:0},color);x.fillRect(0,0,72,48);return el('button',{title:PATS.find(p=>p[0]===k)[1],'aria-label':PATS.find(p=>p[0]===k)[1],'aria-pressed':String(P.pat===k),onclick:()=>{P.pat=k;commit();refreshAll();}},c);}));
 }
 function numCtl(label,get,set,step=1){const inp=el('input',{type:'number',step,value:Math.round(get()*100)/100,'aria-label':label});inp.addEventListener('change',()=>{const v=parseFloat(inp.value);if(isFinite(v)){set(v);commit();refreshAll();}});return el('label',{class:'num'},el('span',{},label),inp);}
 function shapeCenter(l){const b=bbox(l.pts);return{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2};}
@@ -186,6 +200,13 @@ function transformSec(l){
 /* stili: solo l'aspetto (colori, trame, contorni, effetti), mai la posizione */
 const STYLE_KEYS=['color','color2','mirrorSwap','paint','stroke','noFill','edge','pin','fade','outline','shadow','font','bold','italic','spacing','arc','fx','adj','blend','blur','mat','opacity'];
 const STYLE_PRESETS=[
+  {name:'Forged · graphite',preset:true,st:{color:'#54677B',paint:{pat:'forged',bg:'#0C1522',scale:2.4,angle:0}}},
+  {name:'Apex · jade',preset:true,st:{color:'#56E0C3',paint:{pat:'flow',bg:'#0B1726',scale:3,angle:-24}}},
+  {name:'Endurance · ivory',preset:true,st:{color:'#F3ECD9',paint:{pat:'raceband',bg:'#18344D',scale:5,angle:30}}},
+  {name:'Pulse · violet',preset:true,st:{color:'#A78BFA',paint:{pat:'halftone',bg:'#191A36',scale:3,angle:0}}},
+  {name:'Fracture · volt',preset:true,st:{color:'#CBEF44',paint:{pat:'fracture',bg:'#17212E',scale:4,angle:12}}},
+  {name:'Mesh · ice',preset:true,st:{color:'#A7D9F2',paint:{pat:'mesh',bg:'#17304C',scale:3,angle:0}}},
+
   {name:'Carbonio',preset:true,st:{color:'#3a3f47',paint:{pat:'carbon',bg:'#0d0f12',scale:1,angle:0},mat:'carbon'}},
   {name:'Metallo spazzolato (Opzione 1)',preset:true,st:{color:'#e3e6ea',paint:{pat:'brushed',bg:'#9aa1a9',scale:1,angle:0},mat:'chrome'}},
   {name:'Contorno bianco',preset:true,st:{stroke:{on:true,color:'#FFFFFF',width:10},edge:{on:true,only:false,color:'#FFFFFF',width:10,pos:'inside'},outline:{on:true,color:'#FFFFFF',width:8},fx:{tint:{on:false,color:'#FFFFFF'},outline:{on:true,color:'#FFFFFF',width:8},shadow:{on:false,color:'#000000',alpha:.6,blur:12,dx:8,dy:8}}}},
@@ -271,7 +292,7 @@ function buildProps(){
     p.append(el('div',{class:'sec'},el('h3',{},l.mode==='island'?'Pezzi colorati':'Pannelli colorati'),
       el('p',{class:'note'},`${n} ${l.mode==='island'?(n===1?'pezzo':'pezzi'):(n===1?'pannello':'pannelli')} in questo livello. Con il livello selezionato e lo strumento attivo, clicca per aggiungerne o toglierne.`),
       el('div',{class:'row',style:'flex-wrap:wrap'},el('button',{class:'btn sm',onclick:()=>setTool(l.mode==='island'?'island':'panel')},l.mode==='island'?'Aggiungi o togli pezzi':'Aggiungi o togli pannelli'),
-        el('button',{class:'btn sm pri',onclick:()=>{setTab('B');setTimeout(()=>{const e=$('#secGraphics');if(e)e.scrollIntoView({behavior:'smooth'});},50);}},'Aggiungi una grafica qui dentro')),
+        el('button',{class:'btn sm pri',onclick:()=>{openStudio('graphics');setTimeout(()=>{const e=$('#secGraphics');if(e)e.scrollIntoView({behavior:'smooth'});},50);}},'Aggiungi una grafica qui dentro')),
       checkCtl('Anche sull’altro fianco (specchio)',()=>l.mirror,v=>{l.mirror=v;}),
       l.mirror?el('p',{class:'note'},'Colora il pezzo che sta nella posizione riflessa rispetto all’asse (linea arancione). Se cade sul pezzo sbagliato, regola l’asse in Documento.'):null,
       rangeCtl('Abbondanza',()=>l.grow??3,v=>{l.grow=v;},0,12,1,v=>v+' px'),

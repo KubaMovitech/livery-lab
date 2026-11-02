@@ -45,7 +45,7 @@ function addGraphic(g){
   S.layers.splice(at,0,...out);setSel(out.map(l=>l.id));setTool('select');commit();refreshAll();
   toast(tg?`“${g.n}” dentro “${tg.l.name}”: resta solo nei suoi pannelli. Spostala, ruotala o stirala con le maniglie; il colore lo cambi nelle proprietà.`:`“${g.n}” aggiunta al centro. Per metterla dentro dei pannelli: prima “Riempi pannello”, selezioni quel livello e poi scegli la grafica.`,6500);
 }
-function graphicPreview(g){const c=mk(96,56),x=c.getContext('2d');x.fillStyle='#2a2d33';x.fillRect(0,0,96,56);const parts=g.make(rng(7));
+function graphicPreview(g){const c=mk(288,168),x=c.getContext('2d');x.scale(3,3);x.fillStyle='#2a2d33';x.fillRect(0,0,96,56);const parts=g.make(rng(7));
   for(const part of parts){x.fillStyle=CC[part.c]||CC.a;x.beginPath();for(const q of part.polys){q.forEach(([u,v],i)=>i?x.lineTo(6+u*84,5+v*46):x.moveTo(6+u*84,5+v*46));x.closePath();}x.fill();}return c;}
 function paletteSec(){
   const sec=el('div',{class:'sec'},el('h3',{},'Le mie palette'),el('p',{class:'note'},'Clic su un colore: diventa il colore attivo. La palette scelta compare nella barra in alto e nelle proprietà.'));
@@ -72,9 +72,9 @@ function graphicSec(){
 }
 function conceptSec(){
   const cin=(k,lab)=>{const i=el('input',{type:'color',value:CC[k],'aria-label':lab,title:lab});i.addEventListener('change',()=>{CC[k]=i.value;try{localStorage.setItem('liverylab-concept',JSON.stringify(CC));}catch(e){}buildLib();});return el('label',{class:'ccol'},i,el('span',{},lab));};
-  const g=el('div',{class:'cgrid'});
-  for(const cp of CONCEPTS)g.append(el('button',{class:'cbtn2',title:cp.d,onclick:()=>applyConcept(cp)},conceptPreview(cp),el('b',{},cp.n),el('small',{},cp.d)));
-  return el('div',{class:'sec'},el('h3',{},'Concept pronti'),el('p',{class:'note'},'Un clic e la livrea parte da un’idea completa: poi cambi tutto quello che vuoi. Scegli prima i tre colori.'),
+  const g=el('div',{class:'cgrid concept-grid'});
+  for(const cp of CONCEPTS)g.append(el('button',{class:'cbtn2',title:cp.d,onclick:()=>applyConcept(cp)},conceptPreview(cp),el('span',{class:'design-tag'},cp.tag||'Classic'),el('b',{},cp.n),el('small',{},cp.d)));
+  return el('div',{class:'sec',id:'secConcepts'},el('h3',{},'Concept pronti'),el('p',{class:'note'},'Un clic e la livrea parte da un’idea completa: poi cambi tutto quello che vuoi. Scegli prima i tre colori.'),
     el('div',{class:'row',style:'flex-wrap:wrap'},cin('a','Colore 1'),cin('b','Colore 2'),cin('c','Colore 3'),el('button',{class:'btn sm',title:'Usa i colori della palette da foto o della livrea',onclick:()=>{const src=photoPal.length>=3?photoPal:liveryColors();if(src.length<2){toast('Prima estrai una palette da una foto o usa qualche colore.');return;}CC.a=src[0];CC.b=src[1];CC.c=src[2]||CC.c;try{localStorage.setItem('liverylab-concept',JSON.stringify(CC));}catch(e){}buildLib();}},'Dalla palette')),g);
 }
 function buildLib(){
@@ -92,11 +92,7 @@ function buildLib(){
     el('p',{class:'note'},lib?'Ogni logo che importi, trascini o incolli resta qui, salvato nel browser: la prossima volta basta un clic. Per un logo già sulla livrea: proprietà → “Salva nella libreria”.':'In questo browser la libreria non si può salvare: i loghi restano solo per questa sessione.'),
     libItems.length>8?ls:null,g,el('button',{class:'btn sm',style:'margin-top:6px',onclick:()=>$('#fImg').click()},'Carica loghi (PNG trasparenti)')));
   p.append(paletteSec());p.append(graphicSec());p.append(conceptSec());
-  const pg=el('div',{class:'grid'});
-  for(const [k,n] of PATS.filter(q=>!['none','grad','grad3','image'].includes(q[0]))){const c=mk(96,96),x=c.getContext('2d');x.fillStyle=paintStyle(x,{pat:k,bg:S.act.bg,scale:k==='camo'?.4:1,angle:k==='stripes'?45:0},S.act.color);x.fillRect(0,0,96,96);
-    pg.append(el('button',{class:'pt','aria-pressed':String(S.act.pat===k),onclick:()=>{S.act.pat=k;buildOpts();buildLib();toast(`Trama “${n}” attiva per i prossimi riempimenti e forme.`);}},c,n));}
-  p.append(el('div',{class:'sec'},el('h3',{},'Trame'),el('p',{class:'note'},'Usano il colore attivo e il colore di fondo scelto nella barra in alto.'),pg,
-    el('button',{class:'btn sm',style:'margin-top:8px',onclick:()=>{S.act.pat='none';buildOpts();buildLib();}},'Torna alla tinta unita')));
+  p.append(textureStudio());
   const fi=el('input',{type:'file',accept:'.ttf,.otf,.woff,.woff2,font/*',multiple:true,hidden:true});fi.onchange=async()=>{for(const f of fi.files)await addFontFile(f);};
   p.append(el('div',{class:'sec'},el('h3',{},'I tuoi font'),el('p',{class:'note'},'Carica il font del team o di uno sponsor (.ttf, .otf, .woff): resta nel browser come i loghi.'),
     myFonts.length?el('ul',{class:'flist'},...myFonts.map(f=>el('li',{},el('span',{style:`font-family:"${f.name}";font-size:18px`},f.name),el('button',{class:'ib',title:'Togli','aria-label':'Togli '+f.name,onclick:()=>fontDel(f.id)},'✕')))):null,
@@ -107,5 +103,44 @@ function buildLib(){
   const ps=el('div',{class:'swatches'},...photoPal.map(c=>el('button',{class:'sw',style:`background:${c}`,title:c,'aria-label':'Usa '+c,onclick:()=>{S.act.color=c;buildOpts();toast('Colore attivo: '+c);}})));
   p.append(el('div',{class:'sec'},el('h3',{},'Palette da una foto'),el('p',{class:'note'},'Carica una foto di riferimento (una livrea vera, un poster, un paesaggio) e ricavo i suoi colori principali.'),
     photoPal.length?ps:null,el('button',{class:'btn sm',onclick:()=>$('#fPhoto').click()},'Scegli una foto')));
+  organizeLibrary(p);
 }
 
+
+/* Libreria creativa: navigazione locale, senza perdere la selezione sulla tela. */
+let studioCategory='concepts',studioQuery='',textureTarget='next';
+const STUDIO_TABS=[['concepts','Concept'],['textures','Trame'],['graphics','Grafiche'],['palettes','Palette'],['assets','Risorse']];
+function textureStudio(){
+  const layer=selLayer(),editable=layer&&!layer.fromTemplate&&['shape','fill'].includes(layer.type);
+  if(textureTarget==='layer'&&!editable)textureTarget='next';
+  const target=el('select',{'aria-label':'Destinazione della trama'},el('option',{value:'next',selected:textureTarget==='next'},'Prossime forme e riempimenti'),el('option',{value:'base',selected:textureTarget==='base'},'Base della livrea'),el('option',{value:'layer',selected:textureTarget==='layer',disabled:!editable},'Livello selezionato'));
+  target.onchange=()=>{textureTarget=target.value;buildLib();};
+  const apply=k=>{const paint={pat:k,bg:S.act.bg,scale:3,angle:0};
+    if(textureTarget==='base'){S.base=S.act.color;S.basePaint=paint;commit();refreshAll();}
+    else if(textureTarget==='layer'&&editable){layer.color=S.act.color;layer.paint=paint;commit();refreshAll();}
+    S.act.pat=k;S.act.scale=3;buildOpts();buildLib();toast('Trama applicata: '+PATS.find(p=>p[0]===k)[1]+'.');};
+  const pg=el('div',{class:'texture-grid'});
+  const selected=textureTarget==='base'?S.basePaint?.pat:textureTarget==='layer'?layer?.paint?.pat:S.act.pat;
+  for(const [k,n] of PATS.filter(q=>!['grad','grad3','image'].includes(q[0]))){const c=mk(192,112),x=c.getContext('2d');x.fillStyle=paintStyle(x,{pat:k,bg:S.act.bg,scale:.65,angle:0},S.act.color);x.fillRect(0,0,c.width,c.height);
+    pg.append(el('button',{class:'pt texture-card','aria-pressed':String(selected===k),title:n,onclick:()=>apply(k)},c,el('span',{},n)));}
+  return el('div',{class:'sec',id:'secTextures'},el('h3',{},'Texture lab'),el('p',{class:'note'},'Scegli una destinazione e una trama. Colori, scala e rotazione restano modificabili nelle proprietà.'),target,pg);
+}
+function racePaletteSection(){
+  return el('div',{class:'sec race-palettes'},el('h3',{},'Colori da gara'),el('p',{class:'note'},'Abbinamenti pronti per concept e trame. I livelli esistenti mantengono i loro colori.'),el('div',{class:'palette-grid'},...RACE_PALETTES.map(pl=>el('button',{class:'palette-card',title:'Usa '+pl.n,onclick:()=>useRacePalette(pl)},el('span',{class:'palette-strip'},...pl.colors.map(c=>el('i',{style:'background:'+c}))),el('b',{},pl.n)))));
+}
+function organizeLibrary(p){
+  const sections=[...p.children];
+  for(const sec of sections){const name=sec.querySelector('h3')?.textContent||'';sec.dataset.studio=sec.id==='secConcepts'?'concepts':sec.id==='secTextures'?'textures':sec.id==='secGraphics'?'graphics':/palette|Colori/i.test(name)?'palettes':'assets';}
+  const palettes=racePaletteSection();palettes.dataset.studio='palettes';p.prepend(palettes);
+  const intro=el('div',{class:'studio-intro'},el('span',{class:'eyebrow'},'Livery studio'),el('h2',{},'Trova il tuo stile.'),el('p',{},'Colori, trame e grafiche. Una livrea che si riconosce.'));
+  const tabs=el('div',{class:'studio-tabs',role:'group','aria-label':'Categorie della libreria'},...STUDIO_TABS.map(([k,n])=>el('button',{'aria-pressed':String(studioCategory===k),onclick:()=>{studioCategory=k;studioQuery='';buildLib();p.scrollTop=0;}},n)));
+  const q=el('input',{class:'studio-search',type:'search',placeholder:'Cerca uno stile…','aria-label':'Cerca nella categoria',value:studioQuery});
+  const empty=el('p',{class:'studio-empty',hidden:true},'Nessun risultato. Prova un altro nome.');
+  const filter=()=>{let matches=0;for(const sec of p.querySelectorAll('[data-studio]')){sec.hidden=sec.dataset.studio!==studioCategory;if(sec.hidden)continue;for(const card of sec.querySelectorAll('.cbtn2,.texture-card')){card.hidden=!card.textContent.toLowerCase().includes(q.value.toLowerCase().trim());if(!card.hidden)matches++;}}empty.hidden=matches>0||!q.value;};
+  q.oninput=()=>{studioQuery=q.value;filter();};q.hidden=!['concepts','textures','graphics'].includes(studioCategory);
+  p.prepend(intro,tabs,q);p.append(empty);filter();
+  // Palette shortcuts above the creative collections.
+  if(['concepts','textures'].includes(studioCategory)){const quick=el('div',{class:'quick-palettes','aria-label':'Palette rapide'},...RACE_PALETTES.slice(0,6).map(pl=>el('button',{title:pl.n,'aria-label':'Palette '+pl.n,onclick:()=>useRacePalette(pl)},...pl.colors.map(c=>el('i',{style:'background:'+c})))));q.after(quick);}
+}
+
+function openStudio(category){studioCategory=category;studioQuery='';setTab('B');$('#paneB').scrollTop=0;}

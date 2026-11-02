@@ -30,7 +30,7 @@ function hasOutline(l){return (l.type==='fill'&&l.edge&&l.edge.on&&l.edge.width>
 const sepOutline=l=>!!(l.outMat&&l.outMat!=='same'&&hasOutline(l));
 function outMatCtl(l){return selectCtl('Materiale del contorno',OUTMATS,()=>l.outMat||'same',v=>{l.outMat=v;});}
 const PATS=[['none','Tinta unita'],['grad','Sfumatura a 2 colori'],['grad3','Camaleonte a 3 colori'],['carbon','Carbonio'],['stripes','Righe'],['hex','Esagoni'],['dots','Mezzitoni'],['chevron','Chevron'],['checker','Scacchi'],['camo','Mimetico'],
-  ['pin','Gessato'],['grid','Griglia'],['zigzag','Zigzag'],['waves','Onde'],['tri','Triangoli'],['splinter','Schegge'],['pixel','Mimetico digitale'],['tiger','Tigrato'],['scales','Squame'],['diamond','Rombi'],['flake','Glitter'],['brushed','Metallo spazzolato'],['speed','Linee di velocità'],['veins','Venature'],['arteries','Arterie'],['circuit','Circuito'],['topo','Topografico'],['image','Da un’immagine']];
+  ['pin','Gessato'],['grid','Griglia'],['zigzag','Zigzag'],['waves','Onde'],['tri','Triangoli'],['splinter','Schegge'],['pixel','Mimetico digitale'],['tiger','Tigrato'],['scales','Squame'],['diamond','Rombi'],['flake','Glitter'],['brushed','Metallo spazzolato'],['speed','Linee di velocità'],['veins','Venature'],['arteries','Arterie'],['circuit','Circuito'],['topo','Topografico'],['forged','Carbonio forgiato'],['flow','Flusso aerodinamico'],['mesh','Maglia tecnica'],['fracture','Fratture'],['raceband','Fasce endurance'],['halftone','Mezzotono dinamico'],['contour','Onde di interferenza'],['crosshatch','Tessuto tecnico'],['image','Da un’immagine']];
 const PAL=['#F4F5F0','#FFFFFF','#1B1D20','#6D6D6D','#C0202B','#006B3C','#0B3D91','#C9A24B','#E0A100','#E86A10'];
 const S={
   layers:[], sel:null, base:'#F4F5F0', axis:2048, tool:'select', uid:1,
